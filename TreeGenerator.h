@@ -23,13 +23,6 @@ public:
     std::vector<float> afterChances; // indexed list of chances for each result
   };
 
-  // parameters that determine L-System and tree generation
-  struct TreeParameters {
-    int depth;
-    int seed;
-    std::vector<Rule> rules;
-  };
-
   // represents a branch in the tree - these will be passed into the compute
   // shader
   struct Branch {
@@ -48,15 +41,45 @@ public:
     uint32_t parent;
   };
 
-  void initiateTree();
+  // parameters that determine tree generation (branch and mesh representations)
+  struct TreeParameters {
+    std::vector<Branch> branches;
+  };
+
+  // parameters and variables that govern L-System generation
+  struct LSystem {
+    int depth;
+    std::string lState;
+    std::map<char, Rule> ruleSet;
+  };
+
+  // rng seed : public so it is easily modified in GUI
+  unsigned seed;
+
+  // initiate a new tree with these parameters
+  void initiateTree(TreeParameters params, LSystem ls, unsigned seed);
+
+  // test L-System generation
   void testLSystem();
 
 private:
-  std::map<char, Rule> ruleSet;
-  TreeParameters parameters;
-  std::string lState;
+  // treeParameters deals with the generation of the tree structure and mesh
+  // from the L-System
+  TreeParameters treeParameters;
+
+  // lSystem deals with the generation of the L-System that the tree is based on
+  LSystem lSystem;
 
   // L-System functions
   std::string resolveLSystem(int passes);
+
+  // rng, might change source of rng later
   float RNG();
+
+  // reads an L-System file and loads into lSystem
+  void loadLSystem(std::string fileName);
+
+  // reads a configuration file for tree generation and loads into
+  // treeParameters
+  void loadTreeParameters(std::string fileName);
 };

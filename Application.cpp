@@ -52,6 +52,8 @@
 using namespace wgpu;
 using VertexAttributes = ClothObject::ClothVertex;
 using ClothParameters = ClothObject::ClothParameters;
+using TreeParameters = TreeGenerator::TreeParameters;
+using LSystem = TreeGenerator::LSystem;
 
 constexpr float PI = 3.14159265358979323846f;
 
@@ -95,8 +97,12 @@ bool Application::onInit() {
   m_clothParams = ClothParameters();
   m_cloth.initiateNewCloth(m_clothParams, m_device);
 
+  // tree generation test
   TreeGenerator t;
-  t.initiateTree();
+  TreeParameters tp;
+  LSystem ls;
+  unsigned seed = static_cast<unsigned>(time(0));
+  t.initiateTree(tp, ls, seed);
   t.testLSystem();
 
   return true;

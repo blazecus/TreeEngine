@@ -8,24 +8,32 @@
 
 using Branch = TreeGenerator::Branch;
 using TreeParameters = TreeGenerator::TreeParameters;
+using LSystem = TreeGenerator::LSystem;
 using Rule = TreeGenerator::Rule;
 
-void TreeGenerator::initiateTree() {
-  srand(static_cast<unsigned>(time(0)));
+void TreeGenerator::initiateTree(TreeParameters params, LSystem ls,
+                                 unsigned newSeed) {
+
+  seed = newSeed;
+  treeParameters = params;
+  lSystem = ls;
+  // initiate rng seed
+  srand(seed);
+
   return;
 }
 
 // resolveLSystem : runs a given amount of passes of the L-System stored in
 // the TreeGenerator class, returns the string
 std::string TreeGenerator::resolveLSystem(int passes) {
-  std::string currentPass = lState;
+  std::string currentPass = lSystem.lState;
   std::string nextPass = "";
   for (int pass = 0; pass < passes; pass++) {
     nextPass = "";
     // loop through each character and apply rule
     for (char token : currentPass) {
-      if (ruleSet.count(token)) {
-        Rule rule = ruleSet[token];
+      if (lSystem.ruleSet.count(token)) {
+        Rule rule = lSystem.ruleSet[token];
 
         float totalChance = 0.0f;
         // normalize chances
@@ -55,8 +63,8 @@ std::string TreeGenerator::resolveLSystem(int passes) {
     }
 
     currentPass = nextPass; // pass on new string to next loop
-    std::cout << "pass: " << pass << " " << currentPass << std::endl;
-    std::cout << "------------" << std::endl;
+    // std::cout << "pass: " << pass << " " << currentPass << std::endl;
+    // std::cout << "------------" << std::endl;
   }
 
   return currentPass;
@@ -82,9 +90,9 @@ void TreeGenerator::testLSystem() {
 
   rules['a'] = r1;
   rules['b'] = r2;
-  ruleSet = rules;
+  lSystem.ruleSet = rules;
 
-  lState = "ab";
+  lSystem.lState = "ab";
 
   std::string result = resolveLSystem(5);
   std::cout << "result: " << result << std::endl;
