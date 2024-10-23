@@ -27,6 +27,7 @@
 #include "Application.h"
 #include "ClothObject.h"
 #include "ResourceManager.h"
+#include "TreeGenerator.h"
 
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
@@ -93,6 +94,11 @@ bool Application::onInit() {
   // init everything in cloth object
   m_clothParams = ClothParameters();
   m_cloth.initiateNewCloth(m_clothParams, m_device);
+
+  TreeGenerator t;
+  t.initiateTree();
+  t.testLSystem();
+
   return true;
 }
 

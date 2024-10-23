@@ -49,6 +49,7 @@ public:
   };
 
   void initiateTree();
+  void testLSystem();
 
 private:
   std::map<char, Rule> ruleSet;

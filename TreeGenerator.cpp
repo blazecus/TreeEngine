@@ -4,6 +4,8 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/random.hpp>
 
+#include <iostream>
+
 using Branch = TreeGenerator::Branch;
 using TreeParameters = TreeGenerator::TreeParameters;
 using Rule = TreeGenerator::Rule;
@@ -53,6 +55,8 @@ std::string TreeGenerator::resolveLSystem(int passes) {
     }
 
     currentPass = nextPass; // pass on new string to next loop
+    std::cout << "pass: " << pass << " " << currentPass << std::endl;
+    std::cout << "------------" << std::endl;
   }
 
   return currentPass;
@@ -61,4 +65,27 @@ std::string TreeGenerator::resolveLSystem(int passes) {
 // RNG method so I can change rng process later
 float TreeGenerator::RNG() {
   return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+}
+
+// basic test function for the tree generation system
+void TreeGenerator::testLSystem() {
+  std::map<char, Rule> rules;
+  Rule r1;
+  r1.before = 'a';
+  r1.afterChances = {0.9f, 0.1f};
+  r1.afterList = {"ab", ""};
+
+  Rule r2;
+  r2.before = 'b';
+  r2.afterChances = {0.7f, 0.3f};
+  r2.afterList = {"aa", "b"};
+
+  rules['a'] = r1;
+  rules['b'] = r2;
+  ruleSet = rules;
+
+  lState = "ab";
+
+  std::string result = resolveLSystem(5);
+  std::cout << "result: " << result << std::endl;
 }
