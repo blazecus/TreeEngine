@@ -1,0 +1,12 @@
+{
+    "lState": "X",
+    "ruleSet": {
+        "X" : "F[1X]F[2X][3X]F[1X][2X]X",
+        "F" : ["FF", ""]
+    },
+    
+    "thickness" : 10.0,
+    "maxTwist" : 0.1,
+    "maxBend" : 0.1
+
+}

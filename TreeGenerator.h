@@ -48,7 +48,7 @@ public:
 
   // parameters and variables that govern L-System generation
   struct LSystem {
-    int depth;
+    uint8_t depth;
     std::string lState;
     std::map<char, Rule> ruleSet;
   };
@@ -76,10 +76,12 @@ private:
   // rng, might change source of rng later
   float RNG();
 
-  // reads an L-System file and loads into lSystem
-  void loadLSystem(std::string fileName);
-
   // reads a configuration file for tree generation and loads into
-  // treeParameters
+  // treeParameters and lSystem
   void loadTreeParameters(std::string fileName);
+
+  // generate branch structure from lSystem 
+  void turtleGeneration();
+
+  void instructTurtle(char instruction);
 };

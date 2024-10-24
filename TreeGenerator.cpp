@@ -29,6 +29,7 @@ std::string TreeGenerator::resolveLSystem(int passes) {
   std::string currentPass = lSystem.lState;
   std::string nextPass = "";
   for (int pass = 0; pass < passes; pass++) {
+    uint32_t branchDepth = 0;
     nextPass = "";
     // loop through each character and apply rule
     for (char token : currentPass) {
@@ -96,4 +97,27 @@ void TreeGenerator::testLSystem() {
 
   std::string result = resolveLSystem(5);
   std::cout << "result: " << result << std::endl;
+}
+
+
+// note for later - branches need local coordinates. relative positions can be calculated as forces are, then vertex positions have to be calculated backwards
+void TreeGenerator::turtleGeneration(){
+  std::vector<uint32_t> branchStack;
+  std::vector<vec3> positionStac
+  for(char instruction : lSystem.lState){
+    instructTurtle
+  }
+}
+
+void TreeGenerator::instructTurtle(char instruction, std::vector<uint32_t> &branchStack){
+  if(instruction == 'F'){
+    // move turtle forward
+  }
+  else if(instruction == '['){
+
+  }
+  else if (instruction == ']'){
+
+  }
+  else if
 }
