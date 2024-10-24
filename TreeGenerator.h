@@ -80,8 +80,13 @@ private:
   // treeParameters and lSystem
   void loadTreeParameters(std::string fileName);
 
-  // generate branch structure from lSystem 
-  void turtleGeneration();
+  // generate branch structure from lSystem
+  void turtleGeneration(vec3 origin, quat originRotation);
 
-  void instructTurtle(char instruction);
+  void instructTurtle(char instruction, std::vector<uint32_t> &branchStack,
+                      std::vector<vec3> &positionStack,
+                      std::vector<quat> &rotationStack, uint16_t &depth,
+                      vec3 &turtlePosition, quat &turtleRotation);
+
+  Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth);
 };

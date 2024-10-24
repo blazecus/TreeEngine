@@ -99,25 +99,89 @@ void TreeGenerator::testLSystem() {
   std::cout << "result: " << result << std::endl;
 }
 
+// note for later - branches need local coordinates. relative positions can be
+// calculated as forces are, then vertex positions have to be calculated
+// backwards
+void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
+                                     quat originRotation = quat(1.0f, 0.0f,
+                                                                0.0f, 1.0f)) {
 
-// note for later - branches need local coordinates. relative positions can be calculated as forces are, then vertex positions have to be calculated backwards
-void TreeGenerator::turtleGeneration(){
-  std::vector<uint32_t> branchStack;
-  std::vector<vec3> positionStac
-  for(char instruction : lSystem.lState){
-    instructTurtle
+  // initiate first branch at depth 0, this is the trunk
+  treeParameters.branches.push_back(
+      generateSingleBranch(origin, originRotation, 0));
+  uint16_t depth = 0;
+  // these stacks keep track of where we
+  std::vector<uint32_t> branchStack{0};
+  std::vector<vec3> positionStack{origin};
+  std::vector<quat> rotationStack{originRotation};
+
+  // need to keep track of turtle state as it can move without saving to the
+  // stack
+  vec3 turtlePosition;
+  quat turtleRotation;
+
+  for (char instruction : lSystem.lState) {
+    instructTurtle(instruction, branchStack, positionStack, rotationStack,
+                   depth, turtlePosition, turtleRotation);
   }
 }
 
-void TreeGenerator::instructTurtle(char instruction, std::vector<uint32_t> &branchStack){
-  if(instruction == 'F'){
-    // move turtle forward
-  }
-  else if(instruction == '['){
+void TreeGenerator::instructTurtle(char instruction,
+                                   std::vector<uint32_t> &branchStack,
+                                   std::vector<vec3> &positionStack,
+                                   std::vector<quat> &rotationStack,
+                                   uint16_t &depth, vec3 &turtlePosition,
+                                   quat &turtleRotation) {
 
-  }
-  else if (instruction == ']'){
+  // retrieve the branch we're currently traversing (top level branch in branch
+  // stack)
 
+  if (instruction == 'F') {
+    // move turtle forward with some rotation
+  } else if (instruction == '[') {
+    // open bracket means a new branch is placed, and recursively drawn
+    depth++;
+
+    // place origin of next branch at local position, not global position
+    Branch addBranch = generateSingleBranch(
+        turtlePosition - positionStack[positionStack.size() - 1],
+        turtleRotation - rotationStack[rotationStack.size() - 1], depth);
+    addBranch.parent = branchStack[branchStack.size() - 1];
+
+    // update stacks to new branch location
+    branchStack.push_back(treeParameters.branches.size());
+    positionStack.push_back(turtlePosition);
+    rotationStack.push_back(turtleRotation);
+
+    // add branch to branches
+    treeParameters.branches.push_back(addBranch);
+
+    turtleRotation =
+        addBranch.orientation + rotationStack[rotationStack.size() - 2];
+
+  } else if (instruction == ']') {
+    // closed bracket means branch is ended, and turtle returns to the beginning
+    // of the branch
+    depth--;
+
+    // get rid of stored branch
+    branchStack.pop_back();
+    positionStack.pop_back();
+    rotationStack.pop_back();
+
+    turtlePosition = positionStack[positionStack.size() - 1];
+    turtleRotation = rotationStack[rotationStack.size() - 1];
   }
-  else if
+}
+
+Branch TreeGenerator::generateSingleBranch(vec3 origin, quat originRotation,
+                                           uint16_t depth) {
+  Branch newBranch;
+  newBranch.origin = origin;
+  newBranch.orientation = originRotation; // TODO: apply some randomization here
+
+  // depth should be the main factor affecting randomness
+
+  // apply random rotation according to depth
+  return newBranch;
 }
