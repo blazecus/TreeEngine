@@ -41,9 +41,22 @@ public:
     uint32_t parent;
   };
 
+  // Mesh buffer input
+  struct TreeMeshVertex {
+    vec3 position;
+    vec3 normal;
+    uint32_t parentBranch; // index of parent branch in the buffer
+  };
+
   // parameters that determine tree generation (branch and mesh representations)
   struct TreeParameters {
     std::vector<Branch> branches;
+
+    float trunkTwist = 0.1f;
+    float trunkBend = 0.2f;
+
+    float branchTwist = 0.2f;
+    float branchBend = 0.4f;
   };
 
   // parameters and variables that govern L-System generation
@@ -89,4 +102,7 @@ private:
                       vec3 &turtlePosition, quat &turtleRotation);
 
   Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth);
+
+  quat rotateBranch(quat &rotation, vec3 amount);
+  vec3 rotateVector(const vec3 &vector, const quat &rotation);
 };

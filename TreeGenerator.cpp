@@ -34,6 +34,13 @@ std::string TreeGenerator::resolveLSystem(int passes) {
     // loop through each character and apply rule
     for (char token : currentPass) {
       if (lSystem.ruleSet.count(token)) {
+        // depth can be used for stochastic L-System generation
+        if (token == '[') {
+          branchDepth++;
+        } else if (token == ']') {
+          branchDepth--;
+        }
+
         Rule rule = lSystem.ruleSet[token];
 
         float totalChance = 0.0f;
@@ -138,6 +145,11 @@ void TreeGenerator::instructTurtle(char instruction,
 
   if (instruction == 'F') {
     // move turtle forward with some rotation
+    // apply rotation first
+    branchOffRotation(vec3(RNG() * treeParameters.trunkTwist,
+                           RNG() * treeParameters.trunkBend,
+                           RNG() * treeParameters.trunkBend));
+
   } else if (instruction == '[') {
     // open bracket means a new branch is placed, and recursively drawn
     depth++;
@@ -184,4 +196,18 @@ Branch TreeGenerator::generateSingleBranch(vec3 origin, quat originRotation,
 
   // apply random rotation according to depth
   return newBranch;
+}
+
+glm::quat TreeGenerator::rotateBranch(quat &rotation, vec3 amount) {
+  //
+
+  rotation = glm::rotate(rotation, amount, );
+}
+
+glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,
+                                      const quat &rotation) {
+  quat convertedVector = quat(0, vector.x, vector.y, vector.z);
+  quat conguatedVector = glm::conjugate(convertedVector);
+  quat rotatedVector = rotation * convertedVector * conguatedVector;
+  return vec3(rotatedVector.x, rotatedVector.y, rotatedVector.z);
 }
