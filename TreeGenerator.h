@@ -37,26 +37,30 @@ public:
     float pliancy;
     float maxBend;
     float mass;
+    uint16_t depth;
 
     uint32_t parent;
   };
 
   // Mesh buffer input
   struct TreeMeshVertex {
-    vec3 position;
-    vec3 normal;
-    uint32_t parentBranch; // index of parent branch in the buffer
+    vec3 position = vec3(0.0f, 0.0f, 0.0f);
+    vec3 normal = vec3(0.0f, 1.0f, 0.0f);
+    uint32_t parentBranch = 0; // index of parent branch in the buffer
   };
 
   // parameters that determine tree generation (branch and mesh representations)
   struct TreeParameters {
-    std::vector<Branch> branches;
-
     float trunkTwist = 0.1f;
     float trunkBend = 0.2f;
 
     float branchTwist = 0.2f;
     float branchBend = 0.4f;
+
+    float branchLength = 0.2f;
+    float branchLengthDepthFactor = 2.0f;
+    float branchThickness = 0.04f;
+    float branchThicknessDepthFactor = 2.5f;
   };
 
   // parameters and variables that govern L-System generation
@@ -83,11 +87,18 @@ private:
   // lSystem deals with the generation of the L-System that the tree is based on
   LSystem lSystem;
 
+  // keep track of max dephth - dynamic variable that should exist outside of
+  // tree parameters ( depends on RNG)
+  uint16_t maxDepth;
+
   // L-System functions
   std::string resolveLSystem(int passes);
 
   // rng, might change source of rng later
   float RNG();
+
+  std::vector<Branch> branches;
+  std::vector<TreeMeshVertex> mesh;
 
   // reads a configuration file for tree generation and loads into
   // treeParameters and lSystem
@@ -101,8 +112,11 @@ private:
                       std::vector<quat> &rotationStack, uint16_t &depth,
                       vec3 &turtlePosition, quat &turtleRotation);
 
-  Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth);
+  Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth,
+                              uint32_t index);
+  void generateBranchMesh(const uint32_t branchIndex, const vec3 &origin,
+                          const quat &orientation, const float length);
 
-  quat rotateBranch(quat &rotation, vec3 amount);
+  quat rotateBranch(const quat &rotation, const vec3 amount);
   vec3 rotateVector(const vec3 &vector, const quat &rotation);
 };
