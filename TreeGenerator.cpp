@@ -36,17 +36,17 @@ std::string TreeGenerator::resolveLSystem(int passes) {
     nextPass = "";
     // loop through each character and apply rule
     for (char token : currentPass) {
-      if (lSystem.ruleSet.count(token)) {
-        // depth can be used for stochastic L-System generation
-        if (token == '[') {
-          branchDepth++;
-          if (branchDepth > maxDepth) {
-            maxDepth = branchDepth;
-          }
-        } else if (token == ']') {
-          branchDepth--;
+      // depth can be used for stochastic L-System generation
+      if (token == '[') {
+        branchDepth++;
+        if (branchDepth > maxDepth) {
+          maxDepth = branchDepth;
         }
+      } else if (token == ']') {
+        branchDepth--;
+      }
 
+      if (lSystem.ruleSet.count(token)) {
         Rule rule = lSystem.ruleSet[token];
 
         float totalChance = 0.0f;
