@@ -5,6 +5,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/random.hpp>
 
+#include <fstream>
 #include <iostream>
 
 using Branch = TreeGenerator::Branch;
@@ -12,6 +13,7 @@ using TreeParameters = TreeGenerator::TreeParameters;
 using LSystem = TreeGenerator::LSystem;
 using Rule = TreeGenerator::Rule;
 using TreeMeshVertex = TreeGenerator::TreeMeshVertex;
+using json = nlohmann::json;
 
 void TreeGenerator::initiateTree(TreeParameters params, LSystem ls,
                                  unsigned newSeed) {
@@ -81,9 +83,8 @@ std::string TreeGenerator::resolveLSystem(int passes) {
     // std::cout << "------------" << std::endl;
   }
 
-  depthFactor =
-
-      return currentPass;
+  lSystem.lState = currentPass;
+  return currentPass;
 }
 
 // RNG method so I can change rng process later - returns float between 0 and 1
@@ -122,7 +123,7 @@ void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
                                                                 0.0f, 1.0f)) {
 
   // initiate first branch at depth 0, this is the trunk
-  branches.push_back(generateSingleBranch(origin, originRotation, 0, 0));
+  branches.push_back(generateSingleBranch(origin, originRotation, 0));
   uint16_t depth = 0;
   // these stacks keep track of where we
   std::vector<uint32_t> branchStack{0};
@@ -131,8 +132,8 @@ void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
 
   // need to keep track of turtle state as it can move without saving to the
   // stack
-  vec3 turtlePosition;
-  quat turtleRotation;
+  vec3 turtlePosition = origin;
+  quat turtleRotation = originRotation;
 
   for (char instruction : lSystem.lState) {
     instructTurtle(instruction, branchStack, positionStack, rotationStack,
@@ -158,11 +159,18 @@ void TreeGenerator::instructTurtle(char instruction,
                              (RNG() - 0.5f) * 2.0f * treeParameters.trunkTwist,
                              (RNG() - 0.5f) * 2.0f * treeParameters.trunkBend));
     float branchLength =
-        static_cast<float>(depth) / static_cast<float>(maxDepth);
-    vec3 oldPosition = turtlePosition;
+        (2.0f - static_cast<float>(depth) / static_cast<float>(maxDepth)) *
+        0.5f * treeParameters.branchLength;
+    generateBranchMesh(static_cast<uint32_t>(branchStack.size()) - 1,
+                       turtlePosition, turtleRotation, branchLength);
+    // std::cout << turtlePosition.x << " " << turtlePosition.y << " "
+    //           << turtlePosition.z << std::endl;
     turtlePosition +=
         rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength;
 
+    /*std::cout << turtlePosition.x << " " << turtlePosition.y << " "
+              << turtlePosition.z << std::endl;
+    std::cout << " -- --" << std::endl;*/
   } else if (instruction == '[') {
     // open bracket means a new branch is placed, and recursively drawn
     depth++;
@@ -177,15 +185,14 @@ void TreeGenerator::instructTurtle(char instruction,
     // place origin of next branch at local position, not global position
     Branch addBranch = generateSingleBranch(
         turtlePosition - positionStack[positionStack.size() - 1],
-        turtleRotation - rotationStack[rotationStack.size() - 1], depth,
-        branches.size());
+        turtleRotation - rotationStack[rotationStack.size() - 1], depth);
     addBranch.parent = branchStack[branchStack.size() - 1];
 
     // add branch to branches
     branches.push_back(addBranch);
 
     // update stacks to new branch location
-    branchStack.push_back(branches.size() - 1);
+    branchStack.push_back(static_cast<uint32_t>(branches.size()) - 1);
     positionStack.push_back(turtlePosition);
     rotationStack.push_back(turtleRotation);
 
@@ -205,10 +212,11 @@ void TreeGenerator::instructTurtle(char instruction,
 }
 
 Branch TreeGenerator::generateSingleBranch(vec3 origin, quat originRotation,
-                                           uint16_t depth, uint32_t index) {
+                                           uint16_t depth) {
   Branch newBranch;
   newBranch.origin = origin;
   newBranch.orientation = originRotation; // TODO: apply some randomization here
+  newBranch.depth = depth;
 
   // depth should be the main factor affecting randomness
 
@@ -225,30 +233,32 @@ glm::quat TreeGenerator::rotateBranch(const quat &rotation, const vec3 amount) {
   newRotation = glm::rotate(rotation, amount.y, forwardAxis);
 
   //"bend" rotations
-  vec3 rightAxis = rotateVector(vec3(1.0f, 0.0f, 0.0f), rotation);
-  newRotation = glm::rotate(rotation, amount.x, rightAxis);
+  vec3 rightAxis = rotateVector(vec3(1.0f, 0.0f, 0.0f), newRotation);
+  newRotation = glm::rotate(newRotation, amount.x, rightAxis);
 
-  vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), rotation);
-  newRotation = glm::rotate(rotation, amount.z, upAxis);
+  vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), newRotation);
+  newRotation = glm::rotate(newRotation, amount.z, upAxis);
 
   return newRotation;
 }
 
 glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,
                                       const quat &rotation) {
-  quat convertedVector = quat(0, vector.x, vector.y, vector.z);
-  quat conguatedVector = glm::conjugate(convertedVector);
-  quat rotatedVector = rotation * convertedVector * conguatedVector;
-  return vec3(rotatedVector.x, rotatedVector.y, rotatedVector.z);
+  // quat pureVector = quat(vector.x, vector.y, vector.z, 0.0f);
+  // quat rotatedVector = rotation * pureVector * glm::conjugate(rotation);
+  // return vec3(rotatedVector.x, rotatedVector.y, rotatedVector.z);
+  vec3 rotVec = vec3(rotation.x, rotation.y, rotation.z);
+  return vector + 2.0f * glm::cross(rotVec, glm::cross(rotVec, vector) +
+                                                rotation.w * vector);
 }
 
 void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
                                        const vec3 &origin, const quat &rotation,
                                        const float sectionLength) {
   Branch branch = branches[branchIndex];
-  float thickness =
-      (static_cast<float>(branch.depth) / static_cast<float>(maxDepth)) *
-      treeParameters.branchThickness;
+  float thickness = (2.0f - (static_cast<float>(branch.depth) /
+                             static_cast<float>(maxDepth))) *
+                    treeParameters.branchThickness;
   //  get axes
   vec3 xAxis = glm::normalize(rotateVector(vec3(1.0f, 0.0f, 0.0f), rotation)) *
                thickness;
@@ -258,40 +268,75 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
                thickness;
 
   // first face in x direction
-  mesh.push_back(TreeMeshVertex{xAxis - zAxis, xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis + zAxis, xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis + yAxis + zAxis, xAxis, branchIndex});
+  mesh.push_back(TreeMeshVertex{origin + xAxis - zAxis, 0.0f, xAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + xAxis + zAxis, 0.0f, xAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + xAxis + yAxis + zAxis, 0.0f, xAxis, 0.0f});
 
-  mesh.push_back(TreeMeshVertex{xAxis + yAxis + zAxis, xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis + yAxis - zAxis, xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis - zAxis, xAxis, branchIndex});
+  mesh.push_back(
+      TreeMeshVertex{origin + xAxis + yAxis + zAxis, 0.0f, xAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + xAxis + yAxis - zAxis, 0.0f, xAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + xAxis - zAxis, 0.0f, xAxis, 0.0f});
 
   // second face in x direction
-  mesh.push_back(TreeMeshVertex{-xAxis + zAxis, -xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis - zAxis, -xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis + yAxis - zAxis, -xAxis, branchIndex});
+  mesh.push_back(TreeMeshVertex{origin + -xAxis + zAxis, 0.0f, -xAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + -xAxis - zAxis, 0.0f, -xAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + -xAxis + yAxis - zAxis, 0.0f, -xAxis, 0.0f});
 
-  mesh.push_back(TreeMeshVertex{-xAxis + yAxis - zAxis, -xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis + yAxis + zAxis, -xAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis + zAxis, -xAxis, branchIndex});
-
-  // first face in z direction
-  mesh.push_back(TreeMeshVertex{xAxis + zAxis, zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis + zAxis, zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis + yAxis + zAxis, zAxis, branchIndex});
-
-  mesh.push_back(TreeMeshVertex{-xAxis + yAxis + zAxis, zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis + yAxis + zAxis, zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis + zAxis, zAxis, branchIndex});
+  mesh.push_back(
+      TreeMeshVertex{origin + -xAxis + yAxis - zAxis, 0.0f, -xAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + -xAxis + yAxis + zAxis, 0.0f, -xAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + -xAxis + zAxis, 0.0f, -xAxis, 0.0f});
 
   // first face in z direction
-  mesh.push_back(TreeMeshVertex{-xAxis - zAxis, -zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis - zAxis, -zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{xAxis + yAxis - zAxis, -zAxis, branchIndex});
+  mesh.push_back(TreeMeshVertex{origin + xAxis + zAxis, 0.0f, zAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + -xAxis + zAxis, 0.0f, zAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + -xAxis + yAxis + zAxis, 0.0f, zAxis, 0.0f});
 
-  mesh.push_back(TreeMeshVertex{xAxis + yAxis - zAxis, -zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis + yAxis - zAxis, -zAxis, branchIndex});
-  mesh.push_back(TreeMeshVertex{-xAxis - zAxis, -zAxis, branchIndex});
+  mesh.push_back(
+      TreeMeshVertex{origin + -xAxis + yAxis + zAxis, 0.0f, zAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + xAxis + yAxis + zAxis, 0.0f, zAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + xAxis + zAxis, 0.0f, zAxis, 0.0f});
+
+  // first face in z direction
+  mesh.push_back(TreeMeshVertex{origin + -xAxis - zAxis, 0.0f, -zAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + xAxis - zAxis, 0.0f, -zAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + xAxis + yAxis - zAxis, 0.0f, -zAxis, 0.0f});
+
+  mesh.push_back(
+      TreeMeshVertex{origin + xAxis + yAxis - zAxis, 0.0f, -zAxis, 0.0f});
+  mesh.push_back(
+      TreeMeshVertex{origin + -xAxis + yAxis - zAxis, 0.0f, -zAxis, 0.0f});
+  mesh.push_back(TreeMeshVertex{origin + -xAxis - zAxis, 0.0f, -zAxis, 0.0f});
+  // std::cout << mesh[mesh.size() - 1].position.x << std::endl;
+  // std::cout << mesh[mesh.size() - 1].position.y << std::endl;
+  // std::cout << mesh[mesh.size() - 1].position.z << std::endl;
+  // std::cout << "--" << std::endl;
 
   // for now we will skip the top and bottom faces
+}
+
+void TreeGenerator::loadTreeParameters(const std::string &fileName) {
+  std::cout << fileName << std::endl;
+  std::ifstream inputJson(fileName);
+  json jsonData = json::parse(inputJson);
+
+  lSystem.lState = jsonData["lState"];
+  for (auto &ruleData : jsonData["ruleSet"].items()) {
+    Rule rule;
+    rule.before = ruleData.key()[0];
+
+    for (auto &ruleChance : ruleData.value().items()) {
+      rule.afterList.push_back(ruleChance.key());
+      rule.afterChances.push_back(static_cast<float>(ruleChance.value()));
+    }
+
+    lSystem.ruleSet[rule.before] = rule;
+  }
 }

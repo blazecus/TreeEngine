@@ -27,7 +27,6 @@
 #include "Application.h"
 #include "ClothObject.h"
 #include "ResourceManager.h"
-#include "TreeGenerator.h"
 
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
@@ -50,10 +49,13 @@
 #include <string>
 
 using namespace wgpu;
-using VertexAttributes = ClothObject::ClothVertex;
+using TreeMeshVertex = TreeGenerator::TreeMeshVertex;
+using VertexAttributes = TreeMeshVertex;
 using ClothParameters = ClothObject::ClothParameters;
 using TreeParameters = TreeGenerator::TreeParameters;
 using LSystem = TreeGenerator::LSystem;
+
+using quat = glm::quat;
 
 constexpr float PI = 3.14159265358979323846f;
 
@@ -94,16 +96,31 @@ bool Application::onInit() {
     return false;
 
   // init everything in cloth object
-  m_clothParams = ClothParameters();
-  m_cloth.initiateNewCloth(m_clothParams, m_device);
+  // m_clothParams = ClothParameters();
+  // m_cloth.initiateNewCloth(m_clothParams, m_device);
 
   // tree generation test
-  TreeGenerator t;
   TreeParameters tp;
   LSystem ls;
   unsigned seed = static_cast<unsigned>(time(0));
   t.initiateTree(tp, ls, seed);
-  t.testLSystem();
+  t.loadTreeParameters("resources/simpleTree.json");
+  t.resolveLSystem(4);
+  t.turtleGeneration(vec3(0.0f, 0.0f, -1.0f),
+                     glm::normalize(quat(0.0f, 0.0f, 0.0f, 0.0f)));
+  std::cout << t.mesh.size() << std::endl;
+  m_vertexCount = static_cast<int>(t.mesh.size());
+
+  // Create vertex buffer
+  BufferDescriptor vbufferDesc;
+  vbufferDesc.size = t.mesh.size() * sizeof(VertexAttributes);
+  vbufferDesc.usage =
+      BufferUsage::CopyDst | BufferUsage::Storage | BufferUsage::Vertex;
+  vbufferDesc.mappedAtCreation = false;
+  m_vertexBuffer = m_device.createBuffer(vbufferDesc);
+
+  m_device.getQueue().writeBuffer(m_vertexBuffer, 0, t.mesh.data(),
+                                  m_vertexCount * sizeof(VertexAttributes));
 
   return true;
 }
@@ -113,11 +130,11 @@ void Application::onFrame() {
   updateDragInertia();
   updateLightingUniforms();
   // check for cloth parameters updates
-  updateClothParameters();
+  // updateClothParameters();
 
   // run cloth simulation - get next vertex buffer
-  m_cloth.processFrame(m_device);
-  m_vertexCount = m_cloth.numVertices;
+  // m_cloth.processFrame(m_device);
+  // m_vertexCount = m_cloth.numVertices;
 
   // Update uniform buffer
   m_uniforms.time = static_cast<float>(glfwGetTime());
@@ -191,8 +208,11 @@ void Application::onFrame() {
 
   renderPass.setPipeline(m_pipeline);
 
-  renderPass.setVertexBuffer(0, m_cloth.m_vertexBuffer, 0,
-                             m_vertexCount * sizeof(VertexAttributes));
+  // renderPass.setVertexBuffer(0, m_cloth.m_vertexBuffer, 0,
+  //                            m_vertexCount * sizeof(VertexAttributes));
+
+  renderPass.setVertexBuffer(0, m_vertexBuffer, 0,
+                             t.mesh.size() * sizeof(VertexAttributes));
 
   // Set binding group
   renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);

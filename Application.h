@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ClothObject.h"
+#include "TreeGenerator.h"
 #include <glm/glm.hpp>
 #include <webgpu/webgpu.hpp>
 
@@ -153,6 +154,8 @@ private:
   // Render Pipeline
   wgpu::ShaderModule m_shaderModule = nullptr;
   wgpu::RenderPipeline m_pipeline = nullptr;
+  wgpu::Buffer m_vertexBuffer = nullptr;
+  TreeGenerator t;
 
   // Texture
   wgpu::Sampler m_sampler = nullptr;

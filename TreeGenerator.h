@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <json.hpp>
 #include <map>
 #include <string>
 #include <vector>
@@ -45,8 +46,9 @@ public:
   // Mesh buffer input
   struct TreeMeshVertex {
     vec3 position = vec3(0.0f, 0.0f, 0.0f);
+    float garbage1; // 16 byte alignment
     vec3 normal = vec3(0.0f, 1.0f, 0.0f);
-    uint32_t parentBranch = 0; // index of parent branch in the buffer
+    float garbage2; // 16 byte alignment
   };
 
   // parameters that determine tree generation (branch and mesh representations)
@@ -54,12 +56,12 @@ public:
     float trunkTwist = 0.1f;
     float trunkBend = 0.2f;
 
-    float branchTwist = 0.2f;
-    float branchBend = 0.4f;
+    float branchTwist = 0.4f;
+    float branchBend = 1.2f;
 
     float branchLength = 0.2f;
     float branchLengthDepthFactor = 2.0f;
-    float branchThickness = 0.04f;
+    float branchThickness = 0.006f;
     float branchThicknessDepthFactor = 2.5f;
   };
 
@@ -73,47 +75,46 @@ public:
   // rng seed : public so it is easily modified in GUI
   unsigned seed;
 
+  std::vector<Branch> branches;
+  std::vector<TreeMeshVertex> mesh;
+
   // initiate a new tree with these parameters
   void initiateTree(TreeParameters params, LSystem ls, unsigned seed);
 
   // test L-System generation
   void testLSystem();
 
+  // reads a configuration file for tree generation and loads into
+  // treeParameters and lSystem
+  void loadTreeParameters(const std::string &fileName);
+
+  // L-System functions
+  std::string resolveLSystem(int passes);
+
+  // generate branch structure from lSystem
+  void turtleGeneration(vec3 origin, quat originRotation);
+
 private:
+  // lSystem deals with the generation of the L-System that the tree is based on
+  LSystem lSystem;
+
   // treeParameters deals with the generation of the tree structure and mesh
   // from the L-System
   TreeParameters treeParameters;
-
-  // lSystem deals with the generation of the L-System that the tree is based on
-  LSystem lSystem;
 
   // keep track of max dephth - dynamic variable that should exist outside of
   // tree parameters ( depends on RNG)
   uint16_t maxDepth;
 
-  // L-System functions
-  std::string resolveLSystem(int passes);
-
   // rng, might change source of rng later
   float RNG();
-
-  std::vector<Branch> branches;
-  std::vector<TreeMeshVertex> mesh;
-
-  // reads a configuration file for tree generation and loads into
-  // treeParameters and lSystem
-  void loadTreeParameters(std::string fileName);
-
-  // generate branch structure from lSystem
-  void turtleGeneration(vec3 origin, quat originRotation);
 
   void instructTurtle(char instruction, std::vector<uint32_t> &branchStack,
                       std::vector<vec3> &positionStack,
                       std::vector<quat> &rotationStack, uint16_t &depth,
                       vec3 &turtlePosition, quat &turtleRotation);
 
-  Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth,
-                              uint32_t index);
+  Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth);
   void generateBranchMesh(const uint32_t branchIndex, const vec3 &origin,
                           const quat &orientation, const float length);
 
