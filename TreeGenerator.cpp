@@ -184,6 +184,11 @@ void TreeGenerator::instructTurtle(char instruction,
     // open bracket means a new branch is placed, and recursively drawn
     depth++;
 
+    // update stacks to new branch location
+    branchStack.push_back(static_cast<uint32_t>(branches.size()));
+    positionStack.push_back(turtlePosition);
+    rotationStack.push_back(turtleRotation);
+
     // branch off by rotating turtle away, in local rotation
     turtleRotation =
         rotateBranch(turtleRotation,
@@ -193,17 +198,12 @@ void TreeGenerator::instructTurtle(char instruction,
 
     // place origin of next branch at local position, not global position
     Branch addBranch = generateSingleBranch(
-        turtlePosition - positionStack[positionStack.size() - 1],
-        turtleRotation - rotationStack[rotationStack.size() - 1], depth);
-    addBranch.parent = branchStack[branchStack.size() - 1];
+        turtlePosition - positionStack[positionStack.size() - 2],
+        turtleRotation - rotationStack[rotationStack.size() - 2], depth);
+    addBranch.parent = branchStack[branchStack.size() - 2];
 
     // add branch to branches
     branches.push_back(addBranch);
-
-    // update stacks to new branch location
-    branchStack.push_back(static_cast<uint32_t>(branches.size()) - 1);
-    positionStack.push_back(turtlePosition);
-    rotationStack.push_back(turtleRotation);
 
   } else if (instruction == ']') {
     // closed bracket means branch is ended, and turtle returns to the beginning

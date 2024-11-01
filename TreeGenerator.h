@@ -53,8 +53,8 @@ public:
 
   // parameters that determine tree generation (branch and mesh representations)
   struct TreeParameters {
-    float trunkTwist = 0.1f;
-    float trunkBend = 0.2f;
+    float trunkTwist = 0.2f;
+    float trunkBend = 0.4f;
 
     float branchTwist = 0.4f;
     float branchBend = 0.8f;
@@ -64,7 +64,7 @@ public:
     float baseBranchThickness = 0.01f;
     float branchThicknessDepthFactor = 0.2f;
 
-    float heliotropismChance = 0.5f;
+    float heliotropismChance = 0.3f;
   };
 
   // parameters and variables that govern L-System generation
