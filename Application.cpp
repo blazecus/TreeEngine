@@ -105,9 +105,9 @@ bool Application::onInit() {
   unsigned seed = static_cast<unsigned>(time(0));
   t.initiateTree(tp, ls, seed);
   t.loadTreeParameters("resources/simpleTree.json");
-  t.resolveLSystem(4);
+  t.resolveLSystem(6);
   t.turtleGeneration(vec3(0.0f, 0.0f, -1.0f),
-                     glm::normalize(quat(0.0f, 0.0f, 0.0f, 0.0f)));
+                     glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f)));
   std::cout << t.mesh.size() << std::endl;
   m_vertexCount = static_cast<int>(t.mesh.size());
 
@@ -314,7 +314,7 @@ void Application::onMouseButton(int button, int action, int /* modifiers */) {
 
 void Application::onScroll(double /* xoffset */, double yoffset) {
   m_cameraState.zoom += m_drag.scrollSensitivity * static_cast<float>(yoffset);
-  m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -2.0f, 2.0f);
+  m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -10.0f, 10.0f);
   updateViewMatrix();
 }
 

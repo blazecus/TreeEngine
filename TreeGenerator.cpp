@@ -64,7 +64,7 @@ std::string TreeGenerator::resolveLSystem(int passes) {
              chosenRule++) {
           // add up normalized chances
           cumulativeChance += rule.afterChances[chosenRule] / totalChance;
-          if (RNG() < cumulativeChance) {
+          if (RNG() - branchDepth * lSystem.depthBias < cumulativeChance) {
             result = rule.afterList[chosenRule];
             break;
           }
@@ -84,6 +84,7 @@ std::string TreeGenerator::resolveLSystem(int passes) {
   }
 
   lSystem.lState = currentPass;
+  std::cout << lSystem.lState << std::endl;
   return currentPass;
 }
 
@@ -154,23 +155,31 @@ void TreeGenerator::instructTurtle(char instruction,
   if (instruction == 'F') {
     // move turtle forward with some rotation
     // apply rotation first
-    turtleRotation = rotateBranch(
-        turtleRotation, vec3((RNG() - 0.5f) * 2.0f * treeParameters.trunkBend,
-                             (RNG() - 0.5f) * 2.0f * treeParameters.trunkTwist,
-                             (RNG() - 0.5f) * 2.0f * treeParameters.trunkBend));
+    if (RNG() <= treeParameters.heliotropismChance) {
+      quat up = glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f));
+      vec3 upEuler = glm::eulerAngles(up);
+      vec3 turtleEulerDiff = upEuler - glm::eulerAngles(turtleRotation);
+      turtleRotation = rotateBranchAbsolute(
+          turtleRotation,
+          glm::sign(turtleEulerDiff) * vec3(RNG() * treeParameters.trunkBend,
+                                            RNG() * treeParameters.trunkTwist,
+                                            RNG() * treeParameters.trunkBend));
+    } else {
+      turtleRotation =
+          rotateBranch(turtleRotation,
+                       vec3((RNG() - 0.5f) * 2.0f * treeParameters.trunkBend,
+                            (RNG() - 0.5f) * 2.0f * treeParameters.trunkTwist,
+                            (RNG() - 0.5f) * 2.0f * treeParameters.trunkBend));
+    }
     float branchLength =
         (2.0f - static_cast<float>(depth) / static_cast<float>(maxDepth)) *
-        0.5f * treeParameters.branchLength;
+        0.5f * treeParameters.branchLengthDepthFactor *
+        treeParameters.branchLength;
     generateBranchMesh(static_cast<uint32_t>(branchStack.size()) - 1,
                        turtlePosition, turtleRotation, branchLength);
-    // std::cout << turtlePosition.x << " " << turtlePosition.y << " "
-    //           << turtlePosition.z << std::endl;
     turtlePosition +=
         rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength;
 
-    /*std::cout << turtlePosition.x << " " << turtlePosition.y << " "
-              << turtlePosition.z << std::endl;
-    std::cout << " -- --" << std::endl;*/
   } else if (instruction == '[') {
     // open bracket means a new branch is placed, and recursively drawn
     depth++;
@@ -201,13 +210,13 @@ void TreeGenerator::instructTurtle(char instruction,
     // of the branch
     depth--;
 
+    turtlePosition = positionStack[positionStack.size() - 1];
+    turtleRotation = rotationStack[rotationStack.size() - 1];
+
     // get rid of stored branch
     branchStack.pop_back();
     positionStack.pop_back();
     rotationStack.pop_back();
-
-    turtlePosition = positionStack[positionStack.size() - 1];
-    turtleRotation = rotationStack[rotationStack.size() - 1];
   }
 }
 
@@ -229,12 +238,12 @@ glm::quat TreeGenerator::rotateBranch(const quat &rotation, const vec3 amount) {
 
   quat newRotation = rotation;
   //"twist" rotation
-  vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), rotation);
-  newRotation = glm::rotate(rotation, amount.y, forwardAxis);
-
   //"bend" rotations
   vec3 rightAxis = rotateVector(vec3(1.0f, 0.0f, 0.0f), newRotation);
   newRotation = glm::rotate(newRotation, amount.x, rightAxis);
+
+  vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), rotation);
+  newRotation = glm::rotate(rotation, amount.y, forwardAxis);
 
   vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), newRotation);
   newRotation = glm::rotate(newRotation, amount.z, upAxis);
@@ -242,11 +251,27 @@ glm::quat TreeGenerator::rotateBranch(const quat &rotation, const vec3 amount) {
   return newRotation;
 }
 
+glm::quat TreeGenerator::rotateBranchAbsolute(const quat &rotation,
+                                              const vec3 amount) {
+  //
+
+  quat newRotation = rotation;
+  //"twist" rotation
+  vec3 forwardAxis = vec3(0.0f, 1.0f, 0.0f);
+  newRotation = glm::rotate(rotation, amount.y, forwardAxis);
+
+  //"bend" rotations
+  vec3 rightAxis = vec3(1.0f, 0.0f, 0.0f);
+  newRotation = glm::rotate(newRotation, amount.x, rightAxis);
+
+  vec3 upAxis = vec3(0.0f, 0.0f, 1.0f);
+  newRotation = glm::rotate(newRotation, amount.z, upAxis);
+
+  return newRotation;
+}
+
 glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,
                                       const quat &rotation) {
-  // quat pureVector = quat(vector.x, vector.y, vector.z, 0.0f);
-  // quat rotatedVector = rotation * pureVector * glm::conjugate(rotation);
-  // return vec3(rotatedVector.x, rotatedVector.y, rotatedVector.z);
   vec3 rotVec = vec3(rotation.x, rotation.y, rotation.z);
   return vector + 2.0f * glm::cross(rotVec, glm::cross(rotVec, vector) +
                                                 rotation.w * vector);
@@ -256,9 +281,11 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
                                        const vec3 &origin, const quat &rotation,
                                        const float sectionLength) {
   Branch branch = branches[branchIndex];
-  float thickness = (2.0f - (static_cast<float>(branch.depth) /
-                             static_cast<float>(maxDepth))) *
-                    treeParameters.branchThickness;
+  float depthFactor = (1.1f - (static_cast<float>(branch.depth) /
+                               static_cast<float>(maxDepth)));
+  float thickness = depthFactor * depthFactor * depthFactor *
+                        treeParameters.branchThicknessDepthFactor +
+                    treeParameters.baseBranchThickness;
   //  get axes
   vec3 xAxis = glm::normalize(rotateVector(vec3(1.0f, 0.0f, 0.0f), rotation)) *
                thickness;

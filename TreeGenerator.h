@@ -57,12 +57,14 @@ public:
     float trunkBend = 0.2f;
 
     float branchTwist = 0.4f;
-    float branchBend = 1.2f;
+    float branchBend = 0.8f;
 
     float branchLength = 0.2f;
     float branchLengthDepthFactor = 2.0f;
-    float branchThickness = 0.006f;
-    float branchThicknessDepthFactor = 2.5f;
+    float baseBranchThickness = 0.01f;
+    float branchThicknessDepthFactor = 0.2f;
+
+    float heliotropismChance = 0.5f;
   };
 
   // parameters and variables that govern L-System generation
@@ -70,6 +72,7 @@ public:
     uint8_t depth;
     std::string lState;
     std::map<char, Rule> ruleSet;
+    float depthBias = 0.06f;
   };
 
   // rng seed : public so it is easily modified in GUI
@@ -119,5 +122,6 @@ private:
                           const quat &orientation, const float length);
 
   quat rotateBranch(const quat &rotation, const vec3 amount);
+  quat rotateBranchAbsolute(const quat &rotation, const vec3 amount);
   vec3 rotateVector(const vec3 &vector, const quat &rotation);
 };
