@@ -1,4 +1,5 @@
 #include "TreeGenerator.h"
+#include "glm/common.hpp"
 
 #include <cstdint>
 #include <glm/glm.hpp>
@@ -130,24 +131,26 @@ void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
   std::vector<uint32_t> branchStack{0};
   std::vector<vec3> positionStack{origin};
   std::vector<quat> rotationStack{originRotation};
+  std::vector<float> thicknessStack{treeParameters.initialThickness};
 
   // need to keep track of turtle state as it can move without saving to the
   // stack
   vec3 turtlePosition = origin;
   quat turtleRotation = originRotation;
+  float turtleThickness = treeParameters.initialThickness;
 
   for (char instruction : lSystem.lState) {
     instructTurtle(instruction, branchStack, positionStack, rotationStack,
-                   depth, turtlePosition, turtleRotation);
+                   thicknessStack, depth, turtlePosition, turtleRotation,
+                   turtleThickness);
   }
 }
 
-void TreeGenerator::instructTurtle(char instruction,
-                                   std::vector<uint32_t> &branchStack,
-                                   std::vector<vec3> &positionStack,
-                                   std::vector<quat> &rotationStack,
-                                   uint16_t &depth, vec3 &turtlePosition,
-                                   quat &turtleRotation) {
+void TreeGenerator::instructTurtle(
+    char instruction, std::vector<uint32_t> &branchStack,
+    std::vector<vec3> &positionStack, std::vector<quat> &rotationStack,
+    std::vector<float> &thicknessStack, uint16_t &depth, vec3 &turtlePosition,
+    quat &turtleRotation, float &turtleThickness) {
 
   // retrieve the branch we're currently traversing (top level branch in branch
   // stack)
@@ -175,8 +178,13 @@ void TreeGenerator::instructTurtle(char instruction,
         (2.0f - static_cast<float>(depth) / static_cast<float>(maxDepth)) *
         0.5f * treeParameters.branchLengthDepthFactor *
         treeParameters.branchLength;
+    // make tree thinner the farther it grows
+    turtleThickness = glm::clamp(
+        turtleThickness * treeParameters.thicknessDecay,
+        treeParameters.minThickness, treeParameters.initialThickness);
     generateBranchMesh(static_cast<uint32_t>(branchStack.size()) - 1,
-                       turtlePosition, turtleRotation, branchLength);
+                       turtlePosition, turtleRotation, branchLength,
+                       turtleThickness);
     turtlePosition +=
         rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength;
 
@@ -185,16 +193,31 @@ void TreeGenerator::instructTurtle(char instruction,
     depth++;
 
     // update stacks to new branch location
+    float oldTurtleThickness = turtleThickness;
+    turtleThickness =
+        treeParameters.branchOffRatio * (0.5 + RNG()) * turtleThickness;
+    // clamp value
+    turtleThickness = glm::clamp(turtleThickness, treeParameters.minThickness,
+                                 treeParameters.initialThickness);
+
+    thicknessStack.push_back(sqrt(oldTurtleThickness * oldTurtleThickness -
+                                  turtleThickness * turtleThickness));
     branchStack.push_back(static_cast<uint32_t>(branches.size()));
     positionStack.push_back(turtlePosition);
     rotationStack.push_back(turtleRotation);
 
     // branch off by rotating turtle away, in local rotation
-    turtleRotation =
-        rotateBranch(turtleRotation,
-                     vec3((RNG() - 0.5f) * 2.0f * treeParameters.branchBend,
-                          (RNG() - 0.5f) * 2.0f * treeParameters.branchTwist,
-                          (RNG() - 0.5f) * 2.0f * treeParameters.branchBend));
+
+    float eulerX = (RNG() - 0.5f) * 2.0f * treeParameters.branchBend;
+    if (abs(eulerX) <= treeParameters.branchMinBend) {
+      eulerX = treeParameters.branchMinBend * glm::sign(eulerX);
+    }
+    float eulerY = (RNG() - 0.5f) * 2.0f * treeParameters.branchTwist;
+    float eulerZ = (RNG() - 0.5f) * 2.0f * treeParameters.branchBend;
+    if (abs(eulerZ) <= treeParameters.branchMinBend) {
+      eulerZ = treeParameters.branchMinBend * glm::sign(eulerZ);
+    }
+    turtleRotation = rotateBranch(turtleRotation, vec3(eulerX, eulerY, eulerZ));
 
     // place origin of next branch at local position, not global position
     Branch addBranch = generateSingleBranch(
@@ -212,11 +235,13 @@ void TreeGenerator::instructTurtle(char instruction,
 
     turtlePosition = positionStack[positionStack.size() - 1];
     turtleRotation = rotationStack[rotationStack.size() - 1];
+    turtleThickness = thicknessStack[thicknessStack.size() - 1];
 
     // get rid of stored branch
     branchStack.pop_back();
     positionStack.pop_back();
     rotationStack.pop_back();
+    thicknessStack.pop_back();
   }
 }
 
@@ -279,13 +304,10 @@ glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,
 
 void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
                                        const vec3 &origin, const quat &rotation,
-                                       const float sectionLength) {
+                                       const float sectionLength,
+                                       const float thickness) {
   Branch branch = branches[branchIndex];
-  float depthFactor = (1.1f - (static_cast<float>(branch.depth) /
-                               static_cast<float>(maxDepth)));
-  float thickness = depthFactor * depthFactor * depthFactor *
-                        treeParameters.branchThicknessDepthFactor +
-                    treeParameters.baseBranchThickness;
+
   //  get axes
   vec3 xAxis = glm::normalize(rotateVector(vec3(1.0f, 0.0f, 0.0f), rotation)) *
                thickness;

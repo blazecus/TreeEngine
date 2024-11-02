@@ -56,15 +56,20 @@ public:
     float trunkTwist = 0.2f;
     float trunkBend = 0.4f;
 
-    float branchTwist = 0.4f;
-    float branchBend = 0.8f;
+    float branchTwist = 0.6f;
+    float branchMinBend = 0.4f;
+    float branchBend = 1.5f;
 
     float branchLength = 0.2f;
     float branchLengthDepthFactor = 2.0f;
     float baseBranchThickness = 0.01f;
     float branchThicknessDepthFactor = 0.2f;
 
-    float heliotropismChance = 0.3f;
+    float heliotropismChance = 0.7f;
+    float initialThickness = 0.3f;
+    float minThickness = 0.006f;
+    float thicknessDecay = 0.99f;
+    float branchOffRatio = 0.5f;
   };
 
   // parameters and variables that govern L-System generation
@@ -114,12 +119,15 @@ private:
 
   void instructTurtle(char instruction, std::vector<uint32_t> &branchStack,
                       std::vector<vec3> &positionStack,
-                      std::vector<quat> &rotationStack, uint16_t &depth,
-                      vec3 &turtlePosition, quat &turtleRotation);
+                      std::vector<quat> &rotationStack,
+                      std::vector<float> &thicknessStack, uint16_t &depth,
+                      vec3 &turtlePosition, quat &turtleRotation,
+                      float &turtleThickness);
 
   Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth);
   void generateBranchMesh(const uint32_t branchIndex, const vec3 &origin,
-                          const quat &orientation, const float length);
+                          const quat &orientation, const float length,
+                          const float thickness);
 
   quat rotateBranch(const quat &rotation, const vec3 amount);
   quat rotateBranchAbsolute(const quat &rotation, const vec3 amount);
