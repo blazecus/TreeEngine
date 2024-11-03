@@ -268,7 +268,7 @@ glm::quat TreeGenerator::rotateBranch(const quat &rotation, const vec3 amount) {
   newRotation = glm::rotate(newRotation, amount.x, rightAxis);
 
   vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), rotation);
-  newRotation = glm::rotate(rotation, amount.y, forwardAxis);
+  newRotation = glm::rotate(newRotation, amount.y, forwardAxis);
 
   vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), newRotation);
   newRotation = glm::rotate(newRotation, amount.z, upAxis);
@@ -281,13 +281,14 @@ glm::quat TreeGenerator::rotateBranchAbsolute(const quat &rotation,
   //
 
   quat newRotation = rotation;
-  //"twist" rotation
-  vec3 forwardAxis = vec3(0.0f, 1.0f, 0.0f);
-  newRotation = glm::rotate(rotation, amount.y, forwardAxis);
 
   //"bend" rotations
   vec3 rightAxis = vec3(1.0f, 0.0f, 0.0f);
   newRotation = glm::rotate(newRotation, amount.x, rightAxis);
+
+  //"twist" rotation
+  vec3 forwardAxis = vec3(0.0f, 1.0f, 0.0f);
+  newRotation = glm::rotate(newRotation, amount.y, forwardAxis);
 
   vec3 upAxis = vec3(0.0f, 0.0f, 1.0f);
   newRotation = glm::rotate(newRotation, amount.z, upAxis);

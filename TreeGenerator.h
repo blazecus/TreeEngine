@@ -57,7 +57,7 @@ public:
     float trunkBend = 0.4f;
 
     float branchTwist = 0.6f;
-    float branchMinBend = 0.4f;
+    float branchMinBend = 0.6f;
     float branchBend = 1.5f;
 
     float branchLength = 0.2f;
@@ -65,7 +65,7 @@ public:
     float baseBranchThickness = 0.01f;
     float branchThicknessDepthFactor = 0.2f;
 
-    float heliotropismChance = 0.7f;
+    float heliotropismChance = 0.8f;
     float initialThickness = 0.3f;
     float minThickness = 0.006f;
     float thicknessDecay = 0.99f;
