@@ -62,8 +62,6 @@ public:
 
     float branchLength = 0.2f;
     float branchLengthDepthFactor = 2.0f;
-    float baseBranchThickness = 0.01f;
-    float branchThicknessDepthFactor = 0.2f;
 
     float heliotropismChance = 0.8f;
     float initialThickness = 0.3f;
@@ -74,33 +72,22 @@ public:
 
   // parameters and variables that govern L-System generation
   struct LSystem {
-    uint8_t depth;
     std::string lState;
     std::map<char, Rule> ruleSet;
     float depthBias = 0.06f;
+    uint8_t passes = 6;
+    std::string baseConfig = "simpleTree.json";
+    unsigned seed = 0;
   };
-
-  // rng seed : public so it is easily modified in GUI
-  unsigned seed;
 
   std::vector<Branch> branches;
   std::vector<TreeMeshVertex> mesh;
 
-  // initiate a new tree with these parameters
-  void initiateTree(TreeParameters params, LSystem ls, unsigned seed);
-
   // test L-System generation
   void testLSystem();
 
-  // reads a configuration file for tree generation and loads into
-  // treeParameters and lSystem
-  void loadTreeParameters(const std::string &fileName);
-
-  // L-System functions
-  std::string resolveLSystem(int passes);
-
-  // generate branch structure from lSystem
-  void turtleGeneration(vec3 origin, quat originRotation);
+  // initiate and generate tree, for outer usage
+  void generateTree(const TreeParameters params, const LSystem ls);
 
 private:
   // lSystem deals with the generation of the L-System that the tree is based on
@@ -116,6 +103,21 @@ private:
 
   // rng, might change source of rng later
   float RNG();
+
+  // initiate a new tree with these parameters
+  void initiateTree(const TreeParameters& params, const LSystem& ls);
+
+  // reads a configuration file for tree generation and loads into
+  // treeParameters and lSystem
+  void loadTreeParameters(const std::string &fileName);
+
+  // L-System functions
+  std::string resolveLSystem(const uint8_t passes);
+
+  uint16_t timeOffset = 0;
+
+  // generate branch structure from lSystem
+  void turtleGeneration(vec3 origin, quat originRotation);
 
   void instructTurtle(char instruction, std::vector<uint32_t> &branchStack,
                       std::vector<vec3> &positionStack,

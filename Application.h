@@ -55,7 +55,8 @@ private:
   bool initLightingUniforms();
   void terminateLightingUniforms();
   void updateLightingUniforms();
-  void updateClothParameters();
+  void updateTreeParameters();
+  void updateTreeMesh();
 
   bool initBindGroupLayout();
   void terminateBindGroupLayout();
@@ -155,7 +156,11 @@ private:
   wgpu::ShaderModule m_shaderModule = nullptr;
   wgpu::RenderPipeline m_pipeline = nullptr;
   wgpu::Buffer m_vertexBuffer = nullptr;
-  TreeGenerator t;
+  
+  // Tree Generation
+  TreeGenerator m_treeGenerator;
+  TreeGenerator::TreeParameters m_treeParams;
+  TreeGenerator::LSystem m_lSystem;
 
   // Texture
   wgpu::Sampler m_sampler = nullptr;
@@ -173,8 +178,9 @@ private:
   wgpu::Buffer m_lightingUniformBuffer = nullptr;
   LightingUniforms m_lightingUniforms;
   bool m_lightingUniformsChanged = true;
-  bool m_clothParametersChanged = true;
-  bool m_clothReset = true;
+  bool m_treeParametersChanged = true;
+  bool m_treeReset = true;
+  bool m_randomizeTree = true;
 
   // Bind Group Layout
   wgpu::BindGroupLayout m_bindGroupLayout = nullptr;

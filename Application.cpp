@@ -52,8 +52,6 @@ using namespace wgpu;
 using TreeMeshVertex = TreeGenerator::TreeMeshVertex;
 using VertexAttributes = TreeMeshVertex;
 using ClothParameters = ClothObject::ClothParameters;
-using TreeParameters = TreeGenerator::TreeParameters;
-using LSystem = TreeGenerator::LSystem;
 
 using quat = glm::quat;
 
@@ -100,29 +98,26 @@ bool Application::onInit() {
   // m_cloth.initiateNewCloth(m_clothParams, m_device);
 
   // tree generation test
-  TreeParameters tp;
-  LSystem ls;
-  unsigned seed = static_cast<unsigned>(time(0));
-  t.initiateTree(tp, ls, seed);
-  t.loadTreeParameters("resources/simpleTree.json");
-  t.resolveLSystem(6);
-  t.turtleGeneration(vec3(0.0f, 0.0f, -1.0f),
-                     glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f)));
-  std::cout << t.mesh.size() << std::endl;
-  m_vertexCount = static_cast<int>(t.mesh.size());
+  m_treeGenerator.generateTree(m_treeParams, m_lSystem);
+
+  updateTreeMesh();
+
+  return true;
+}
+
+void Application::updateTreeMesh(){
+  m_vertexCount = static_cast<int>(m_treeGenerator.mesh.size());
 
   // Create vertex buffer
   BufferDescriptor vbufferDesc;
-  vbufferDesc.size = t.mesh.size() * sizeof(VertexAttributes);
+  vbufferDesc.size = m_treeGenerator.mesh.size() * sizeof(VertexAttributes);
   vbufferDesc.usage =
       BufferUsage::CopyDst | BufferUsage::Storage | BufferUsage::Vertex;
   vbufferDesc.mappedAtCreation = false;
   m_vertexBuffer = m_device.createBuffer(vbufferDesc);
 
-  m_device.getQueue().writeBuffer(m_vertexBuffer, 0, t.mesh.data(),
+  m_device.getQueue().writeBuffer(m_vertexBuffer, 0, m_treeGenerator.mesh.data(),
                                   m_vertexCount * sizeof(VertexAttributes));
-
-  return true;
 }
 
 void Application::onFrame() {
@@ -130,7 +125,7 @@ void Application::onFrame() {
   updateDragInertia();
   updateLightingUniforms();
   // check for cloth parameters updates
-  // updateClothParameters();
+  updateTreeParameters();
 
   // run cloth simulation - get next vertex buffer
   // m_cloth.processFrame(m_device);
@@ -212,7 +207,7 @@ void Application::onFrame() {
   //                            m_vertexCount * sizeof(VertexAttributes));
 
   renderPass.setVertexBuffer(0, m_vertexBuffer, 0,
-                             t.mesh.size() * sizeof(VertexAttributes));
+                             m_treeGenerator.mesh.size() * sizeof(VertexAttributes));
 
   // Set binding group
   renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
@@ -754,17 +749,18 @@ void Application::updateLightingUniforms() {
   }
 }
 
-void Application::updateClothParameters() {
+void Application::updateTreeParameters() {
   // checks if parameters need to be updated from gui, and updates them if so,
-  // creating a new cloth
-  if (m_clothParametersChanged) {
-    m_cloth.updateParameters(m_clothParams);
-    m_cloth.updateUniforms(m_device);
-    m_clothParametersChanged = false;
+  // generates new tree if button was pressed
+  if (m_treeParametersChanged) {
+    //m_cloth.updateParameters(m_clothParams);
+    //m_cloth.updateUniforms(m_device);
+    m_treeParametersChanged = false;
   }
-  if (m_clothReset) {
-    m_cloth.initiateNewCloth(m_clothParams, m_device);
-    m_clothReset = false;
+  if (m_treeReset) {
+    m_treeGenerator.generateTree(m_treeParams, m_lSystem);
+    m_treeReset = false;
+    updateTreeMesh();
   }
 }
 
@@ -934,63 +930,77 @@ void Application::updateGui(RenderPassEncoder renderPass) {
 
   // Build our UI
 
-  // cloth ui
+  // tree parameters ui
   {
     bool changed = false;
-    bool resetCloth = false;
-    ImGui::Begin("cloth");
-    resetCloth =
-        ImGui::SliderInt("X Particle Count", &m_clothParams.width, 1, 600) ||
-        resetCloth;
-    resetCloth =
-        ImGui::SliderInt("Y Particle Count", &m_clothParams.height, 1, 600) ||
-        resetCloth;
-
-    changed =
-        ImGui::SliderFloat("Float scale", &m_clothParams.scale, 0.1f, 10.0f) ||
+    bool resetTree = false;
+    ImGui::Begin("Tree Parameters");
+    resetTree = ImGui::Button("Generate tree");
+    uint8_t minDepth = 1;
+    uint8_t maxDepth = 10;
+    // 1 -> uint8_t
+    changed = ImGui::SliderScalar("L-System generation depth", 1, &m_lSystem.passes, &minDepth, &maxDepth) ||
         changed;
 
-    changed = ImGui::SliderFloat("Particle mass", &m_clothParams.massScale,
-                                 10.0f, 300.0f) ||
-              changed;
-    changed = ImGui::SliderFloat("Maximum stretch ratio",
-                                 &m_clothParams.maxStretch, 1.0f, 2.0f) ||
-              changed;
-    changed = ImGui::SliderFloat("Reverse stretch ratio",
-                                 &m_clothParams.minStretch, 0.0f, 0.5f) ||
-              changed;
-
     changed =
-        ImGui::SliderFloat("nearby spring strength",
-                           &m_clothParams.closeSpringStrength, 0.0f, 200.0f) ||
-        changed;
-    changed =
-        ImGui::SliderFloat("far spring strength",
-                           &m_clothParams.farSpringStrength, 0.0f, 200.0f) ||
+        ImGui::SliderFloat("L-System depth chance bias", &m_lSystem.depthBias, 0.1f, 10.0f) ||
         changed;
 
-    changed = ImGui::SliderFloat("wind strength", &m_clothParams.wind_strength,
-                                 0.0f, 200.0f) ||
-              changed;
-    changed = ImGui::SliderFloat3("wind direction x", &m_clothParams.wind_dir.x,
-                                  -1.0f, 1.0f) ||
-              changed;
-
-    changed = ImGui::SliderFloat("Sphere radius", &m_clothParams.sphereRadius,
-                                 0.1f, 2.0f) ||
-              changed;
-
-    changed = ImGui::SliderFloat("Sphere loop period",
-                                 &m_clothParams.spherePeriod, 20.0f, 300.0f) ||
-              changed;
-
-    changed =
-        ImGui::SliderFloat("deltaT", &m_clothParams.deltaT, 0.0015f, 0.02f) ||
+    // 5 -> unsigned
+    changed = ImGui::InputScalar("RNG seed (0 to use time)", 5, &m_lSystem.seed) ||
         changed;
 
+    changed =
+        ImGui::SliderFloat("Trunk twist factor", &m_treeParams.trunkTwist, 0.0f, 3.14f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Trunk bend factor", &m_treeParams.trunkBend, 0.0f, 3.14f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Branch twist factor", &m_treeParams.branchTwist, 0.0f, 3.14f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Branch min bend factor", &m_treeParams.branchMinBend, 0.0f, 1.57f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Branch bend factor", &m_treeParams.branchBend, m_treeParams.branchMinBend, 3.14f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Branch length", &m_treeParams.branchLength, 0.01f, 1.0f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Branch length depth factor", &m_treeParams.branchLengthDepthFactor, 0.0f, 10.0f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Base trunk thickness", &m_treeParams.initialThickness, 0.05f, 1.0f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Min thickness", &m_treeParams.minThickness, 0.0f, 0.01f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Thickness decay rate", &m_treeParams.thicknessDecay, 0.8f, 1.0f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Heliotropism", &m_treeParams.heliotropismChance, 0.0f, 1.0f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Branch-off thickness ratio", &m_treeParams.branchOffRatio, 0.1f, 0.8f) ||
+        changed;
+    
     ImGui::End();
-    m_clothParametersChanged = changed;
-    m_clothReset = resetCloth;
+    m_treeParametersChanged = changed;
+    m_treeReset = resetTree;
   }
 
   {

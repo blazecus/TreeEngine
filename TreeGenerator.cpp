@@ -16,25 +16,39 @@ using Rule = TreeGenerator::Rule;
 using TreeMeshVertex = TreeGenerator::TreeMeshVertex;
 using json = nlohmann::json;
 
-void TreeGenerator::initiateTree(TreeParameters params, LSystem ls,
-                                 unsigned newSeed) {
+void TreeGenerator::initiateTree(const TreeParameters& params, const LSystem& ls) {
 
-  seed = newSeed;
   treeParameters = params;
   lSystem = ls;
+
   // initiate rng seed
-  srand(seed);
+  if(lSystem.seed == 0){
+    srand(static_cast<unsigned>(time(0)) + timeOffset);
+    timeOffset++;
+  } else {
+    srand(lSystem.seed);
+  }
 
   return;
 }
 
+void TreeGenerator::generateTree(const TreeParameters params, const LSystem ls) {
+  branches.clear();
+  mesh.clear();
+  initiateTree(params, ls);
+  loadTreeParameters("resources/" + ls.baseConfig);
+  resolveLSystem(lSystem.passes);
+  turtleGeneration(vec3(0.0f, 0.0f, -1.0f),
+                     glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f)));
+}
+
 // resolveLSystem : runs a given amount of passes of the L-System stored in
 // the TreeGenerator class, returns the string
-std::string TreeGenerator::resolveLSystem(int passes) {
+std::string TreeGenerator::resolveLSystem(const uint8_t passes) {
   std::string currentPass = lSystem.lState;
   std::string nextPass = "";
   maxDepth = 0;
-  for (int pass = 0; pass < passes; pass++) {
+  for (uint8_t pass = 0; pass < passes; pass++) {
     uint16_t branchDepth = 0;
     nextPass = "";
     // loop through each character and apply rule
@@ -85,7 +99,7 @@ std::string TreeGenerator::resolveLSystem(int passes) {
   }
 
   lSystem.lState = currentPass;
-  std::cout << lSystem.lState << std::endl;
+  //std::cout << lSystem.lState << std::endl;
   return currentPass;
 }
 

@@ -9,8 +9,5 @@
       "FF": 0.35,
       "F": 0.65
     }
-  },
-  "thickness": 10.0,
-  "maxTwist": 0.1,
-  "maxBend": 0.1
+  }
 }
