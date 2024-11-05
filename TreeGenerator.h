@@ -63,11 +63,17 @@ public:
     float branchLength = 0.2f;
     float branchLengthDepthFactor = 2.0f;
 
-    float heliotropismChance = 0.8f;
+    float heliotropismChance = 0.55f;
     float initialThickness = 0.3f;
     float minThickness = 0.006f;
     float thicknessDecay = 0.99f;
-    float branchOffRatio = 0.5f;
+    float branchOffRatio = 0.4f;
+
+    float splitOffBend = 1.5f;
+    float minSplitOffBend = 0.2f;
+    float splitOffTwist = 0.1f;
+    float maxSplitOffThicknessFactor = 1.7f;
+    float minSplitOffThicknessFactor = 1.5f;
   };
 
   // parameters and variables that govern L-System generation
@@ -133,5 +139,6 @@ private:
 
   quat rotateBranch(const quat &rotation, const vec3 amount);
   quat rotateBranchAbsolute(const quat &rotation, const vec3 amount);
+  quat applyHeliotropism(const quat& rotation, const float amount);
   vec3 rotateVector(const vec3 &vector, const quat &rotation);
 };

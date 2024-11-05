@@ -2,7 +2,7 @@
   "lState": "FX",
   "ruleSet": {
     "X": {
-      "F[X]F[X][X]F[X][X]X": 0.6,
+      "F3{FX}{FX}{X}": 0.6,
       "X": 0.4
     },
     "F": {

@@ -54,12 +54,12 @@ std::string TreeGenerator::resolveLSystem(const uint8_t passes) {
     // loop through each character and apply rule
     for (char token : currentPass) {
       // depth can be used for stochastic L-System generation
-      if (token == '[') {
+      if (token == '[' || token == '{') {
         branchDepth++;
         if (branchDepth > maxDepth) {
           maxDepth = branchDepth;
         }
-      } else if (token == ']') {
+      } else if (token == ']' || token == '}') {
         branchDepth--;
       }
 
@@ -173,14 +173,15 @@ void TreeGenerator::instructTurtle(
     // move turtle forward with some rotation
     // apply rotation first
     if (RNG() <= treeParameters.heliotropismChance) {
-      quat up = glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f));
+      /*quat up = glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f));
       vec3 upEuler = glm::eulerAngles(up);
       vec3 turtleEulerDiff = upEuler - glm::eulerAngles(turtleRotation);
       turtleRotation = rotateBranchAbsolute(
           turtleRotation,
           glm::sign(turtleEulerDiff) * vec3(RNG() * treeParameters.trunkBend,
-                                            RNG() * treeParameters.trunkTwist,
-                                            RNG() * treeParameters.trunkBend));
+                                            0.0f * RNG() * treeParameters.trunkTwist,
+                                            RNG() * treeParameters.trunkBend));*/
+      turtleRotation = applyHeliotropism(turtleRotation, RNG() * 0.5f * treeParameters.trunkBend);
     } else {
       turtleRotation =
           rotateBranch(turtleRotation,
@@ -242,7 +243,7 @@ void TreeGenerator::instructTurtle(
     // add branch to branches
     branches.push_back(addBranch);
 
-  } else if (instruction == ']') {
+  } else if (instruction == ']' || instruction == '}') {
     // closed bracket means branch is ended, and turtle returns to the beginning
     // of the branch
     depth--;
@@ -256,6 +257,48 @@ void TreeGenerator::instructTurtle(
     positionStack.pop_back();
     rotationStack.pop_back();
     thicknessStack.pop_back();
+  } else if (instruction > '0' && instruction <= '9'){
+    // if int is found - splitting instruction started
+    uint8_t splitCount = instruction - '0';
+    float splitOffset = RNG() * 2.0f * glm::pi<float>();
+    float splitAngle = 2.0f * glm::pi<float>() / splitCount;
+
+    float baseThickness = turtleThickness / sqrt((float) splitCount);
+
+    vec3 parentPosition = positionStack[positionStack.size() - 1];
+    quat parentRotation = rotationStack[rotationStack.size() - 1];
+    uint32_t parentBranch = branchStack[branchStack.size() - 1];
+
+    for(uint8_t split = 0; split < splitCount; split++){
+      float thicknessRNG = treeParameters.minSplitOffBend + (treeParameters.maxSplitOffThicknessFactor - treeParameters.minSplitOffBend) * RNG();
+      float currentThickness = thicknessRNG * baseThickness;
+      
+      vec3 rotationAmount = vec3(0.0f, 
+                                splitOffset + split * splitAngle + (RNG() - 0.5f) * 2.0f * treeParameters.splitOffTwist, 
+                                0.0f);
+      quat interRotation = rotateBranch(turtleRotation, rotationAmount);
+      rotationAmount = vec3(-glm::clamp(RNG() * treeParameters.splitOffBend, treeParameters.minSplitOffBend, treeParameters.splitOffBend), 
+                                0.0f,
+                                0.0f);
+      thicknessStack.push_back(currentThickness);
+      positionStack.push_back(turtlePosition);
+      rotationStack.push_back(rotateBranch(interRotation, rotationAmount));
+      branchStack.push_back(static_cast<uint32_t>(branches.size()));
+
+      // place origin of next branch at local position, not global position
+      Branch addBranch = generateSingleBranch(
+          turtlePosition - parentPosition,
+          turtleRotation - parentRotation, depth);
+      addBranch.parent = parentBranch;
+
+      // add branch to branches
+      branches.push_back(addBranch);
+    }
+  } else if (instruction == '{'){
+    depth ++;
+    turtlePosition = positionStack[positionStack.size()-1];
+    turtleRotation = rotationStack[rotationStack.size()-1];
+    turtleThickness = thicknessStack[thicknessStack.size()-1];
   }
 }
 
@@ -281,7 +324,7 @@ glm::quat TreeGenerator::rotateBranch(const quat &rotation, const vec3 amount) {
   vec3 rightAxis = rotateVector(vec3(1.0f, 0.0f, 0.0f), newRotation);
   newRotation = glm::rotate(newRotation, amount.x, rightAxis);
 
-  vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), rotation);
+  vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), newRotation);
   newRotation = glm::rotate(newRotation, amount.y, forwardAxis);
 
   vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), newRotation);
@@ -403,4 +446,10 @@ void TreeGenerator::loadTreeParameters(const std::string &fileName) {
 
     lSystem.ruleSet[rule.before] = rule;
   }
+}
+
+glm::quat TreeGenerator::applyHeliotropism(const quat& rotation, const float amount){
+  quat upwards = quat(0.707f, 0.707f, 0.0f, 0.0f);
+  float angle = glm::acos(glm::dot(rotation, upwards));
+  return glm::slerp(rotation, upwards, amount/angle);
 }
