@@ -173,18 +173,10 @@ void TreeGenerator::instructTurtle(
     // move turtle forward with some rotation
     // apply rotation first
     if (RNG() <= treeParameters.heliotropismChance) {
-      /*quat up = glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f));
-      vec3 upEuler = glm::eulerAngles(up);
-      vec3 turtleEulerDiff = upEuler - glm::eulerAngles(turtleRotation);
-      turtleRotation = rotateBranchAbsolute(
-          turtleRotation,
-          glm::sign(turtleEulerDiff) * vec3(RNG() * treeParameters.trunkBend,
-                                            0.0f * RNG() * treeParameters.trunkTwist,
-                                            RNG() * treeParameters.trunkBend));*/
-      turtleRotation = applyHeliotropism(turtleRotation, RNG() * 0.5f * treeParameters.trunkBend);
+      turtleRotation = applyHeliotropism(turtleRotation, RNG() * treeParameters.heliotropismBendFactor);
     } else {
       turtleRotation =
-          rotateBranch(turtleRotation,
+          rotateBranchAbsolute(turtleRotation,
                        vec3((RNG() - 0.5f) * 2.0f * treeParameters.trunkBend,
                             (RNG() - 0.5f) * 2.0f * treeParameters.trunkTwist,
                             (RNG() - 0.5f) * 2.0f * treeParameters.trunkBend));
@@ -232,7 +224,7 @@ void TreeGenerator::instructTurtle(
     if (abs(eulerZ) <= treeParameters.branchMinBend) {
       eulerZ = treeParameters.branchMinBend * glm::sign(eulerZ);
     }
-    turtleRotation = rotateBranch(turtleRotation, vec3(eulerX, eulerY, eulerZ));
+    turtleRotation = rotateBranchAbsolute(turtleRotation, vec3(eulerX, eulerY, eulerZ));
 
     // place origin of next branch at local position, not global position
     Branch addBranch = generateSingleBranch(
@@ -270,19 +262,28 @@ void TreeGenerator::instructTurtle(
     uint32_t parentBranch = branchStack[branchStack.size() - 1];
 
     for(uint8_t split = 0; split < splitCount; split++){
-      float thicknessRNG = treeParameters.minSplitOffBend + (treeParameters.maxSplitOffThicknessFactor - treeParameters.minSplitOffBend) * RNG();
+      float thicknessRNG = treeParameters.minSplitOffThicknessFactor+ (treeParameters.maxSplitOffThicknessFactor - treeParameters.minSplitOffThicknessFactor) * RNG();
       float currentThickness = thicknessRNG * baseThickness;
-      
-      vec3 rotationAmount = vec3(0.0f, 
-                                splitOffset + split * splitAngle + (RNG() - 0.5f) * 2.0f * treeParameters.splitOffTwist, 
-                                0.0f);
-      quat interRotation = rotateBranch(turtleRotation, rotationAmount);
-      rotationAmount = vec3(-glm::clamp(RNG() * treeParameters.splitOffBend, treeParameters.minSplitOffBend, treeParameters.splitOffBend), 
-                                0.0f,
-                                0.0f);
+
+      float twist = splitOffset + split * splitAngle + (RNG() - 0.5f) * 2.0f * treeParameters.splitOffTwist;
+      float bend = glm::clamp(RNG() * treeParameters.splitOffBend, treeParameters.minSplitOffBend, treeParameters.splitOffBend);
+
+      vec3 rotationAmount = vec3(
+        0.0f,
+        twist,
+        0.0f
+      );
+
+      quat interRotation = rotateBranchAbsolute(turtleRotation, rotationAmount);
+      rotationAmount = vec3(
+        bend,
+        0.0f,
+        0.0f
+      );
+
       thicknessStack.push_back(currentThickness);
       positionStack.push_back(turtlePosition);
-      rotationStack.push_back(rotateBranch(interRotation, rotationAmount));
+      rotationStack.push_back(rotateBranchAbsolute(interRotation, rotationAmount));
       branchStack.push_back(static_cast<uint32_t>(branches.size()));
 
       // place origin of next branch at local position, not global position
@@ -316,41 +317,30 @@ Branch TreeGenerator::generateSingleBranch(vec3 origin, quat originRotation,
 }
 
 glm::quat TreeGenerator::rotateBranch(const quat &rotation, const vec3 amount) {
-  //
+  vec3 rightAxis = rotateVector(vec3(1.0f, 0.0f, 0.0f), rotation);
+  quat runningRotation = glm::rotate(rotation, amount.x, rightAxis);
 
-  quat newRotation = rotation;
-  //"twist" rotation
-  //"bend" rotations
-  vec3 rightAxis = rotateVector(vec3(1.0f, 0.0f, 0.0f), newRotation);
-  newRotation = glm::rotate(newRotation, amount.x, rightAxis);
+  vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), rotation);
+  runningRotation = glm::rotate(runningRotation, amount.y, forwardAxis);
 
-  vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), newRotation);
-  newRotation = glm::rotate(newRotation, amount.y, forwardAxis);
+  vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), rotation);
+  runningRotation = glm::rotate(runningRotation, amount.z, upAxis);
 
-  vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), newRotation);
-  newRotation = glm::rotate(newRotation, amount.z, upAxis);
-
-  return newRotation;
+  return runningRotation;
 }
 
 glm::quat TreeGenerator::rotateBranchAbsolute(const quat &rotation,
                                               const vec3 amount) {
-  //
-
-  quat newRotation = rotation;
-
-  //"bend" rotations
   vec3 rightAxis = vec3(1.0f, 0.0f, 0.0f);
-  newRotation = glm::rotate(newRotation, amount.x, rightAxis);
+  quat runningRotation = glm::rotate(rotation, amount.x, rightAxis);
 
-  //"twist" rotation
   vec3 forwardAxis = vec3(0.0f, 1.0f, 0.0f);
-  newRotation = glm::rotate(newRotation, amount.y, forwardAxis);
+  runningRotation = glm::rotate(runningRotation, amount.y, forwardAxis);
 
   vec3 upAxis = vec3(0.0f, 0.0f, 1.0f);
-  newRotation = glm::rotate(newRotation, amount.z, upAxis);
+  runningRotation = glm::rotate(runningRotation, amount.z, upAxis);
 
-  return newRotation;
+  return runningRotation;
 }
 
 glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,

@@ -995,7 +995,31 @@ void Application::updateGui(RenderPassEncoder renderPass) {
         changed;
 
     changed =
+        ImGui::SliderFloat("Heliotropism bend factor", &m_treeParams.heliotropismBendFactor, 0.0f, 3.14f) ||
+        changed;
+
+    changed =
         ImGui::SliderFloat("Branch-off thickness ratio", &m_treeParams.branchOffRatio, 0.1f, 0.8f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("Split off bend", &m_treeParams.splitOffBend, m_treeParams.minSplitOffBend, 6.28f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("min split off bend", &m_treeParams.minSplitOffBend, 0.1f, 3.14f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("split off twist", &m_treeParams.splitOffTwist, 0.0f, 3.14f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("max split off thickness ratio", &m_treeParams.maxSplitOffThicknessFactor, m_treeParams.minSplitOffThicknessFactor, 2.0f) ||
+        changed;
+
+    changed =
+        ImGui::SliderFloat("min split off thickness ratio", &m_treeParams.minSplitOffThicknessFactor, 0.0f, m_treeParams.maxSplitOffThicknessFactor) ||
         changed;
     
     ImGui::End();

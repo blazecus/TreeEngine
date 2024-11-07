@@ -56,24 +56,25 @@ public:
     float trunkTwist = 0.2f;
     float trunkBend = 0.4f;
 
-    float branchTwist = 0.6f;
-    float branchMinBend = 0.6f;
-    float branchBend = 1.5f;
+    float branchTwist = 0.8f;
+    float branchMinBend = 0.4f;
+    float branchBend = 1.2f;
 
     float branchLength = 0.2f;
     float branchLengthDepthFactor = 2.0f;
 
-    float heliotropismChance = 0.55f;
+    float heliotropismChance = 0.25f;
+    float heliotropismBendFactor = 0.4f;
     float initialThickness = 0.3f;
     float minThickness = 0.006f;
     float thicknessDecay = 0.99f;
     float branchOffRatio = 0.4f;
 
-    float splitOffBend = 1.5f;
-    float minSplitOffBend = 0.2f;
+    float splitOffBend = 1.3f;
+    float minSplitOffBend = 0.5f;
     float splitOffTwist = 0.1f;
-    float maxSplitOffThicknessFactor = 1.7f;
-    float minSplitOffThicknessFactor = 1.5f;
+    float maxSplitOffThicknessFactor = 1.1f;
+    float minSplitOffThicknessFactor = 0.8f;
   };
 
   // parameters and variables that govern L-System generation
@@ -82,7 +83,7 @@ public:
     std::map<char, Rule> ruleSet;
     float depthBias = 0.06f;
     uint8_t passes = 6;
-    std::string baseConfig = "simpleTree.json";
+    std::string baseConfig = "splitTree.json";
     unsigned seed = 0;
   };
 
