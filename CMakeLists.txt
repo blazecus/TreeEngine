@@ -27,6 +27,8 @@ add_executable(App
   ClothObject.cpp
   TreeGenerator.h
   TreeGenerator.cpp
+  OccupancyGrid.h
+  OccupancyGrid.cpp
 	ResourceManager.h
 	ResourceManager.cpp
 	implementations.cpp

@@ -943,7 +943,7 @@ void Application::updateGui(RenderPassEncoder renderPass) {
         changed;
 
     changed =
-        ImGui::SliderFloat("L-System depth chance bias", &m_lSystem.depthBias, 0.1f, 10.0f) ||
+        ImGui::SliderFloat("L-System depth chance bias", &m_lSystem.depthBias, 0.0f,  2.0f) ||
         changed;
 
     // 5 -> unsigned

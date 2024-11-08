@@ -38,7 +38,7 @@ void TreeGenerator::generateTree(const TreeParameters params, const LSystem ls) 
   initiateTree(params, ls);
   loadTreeParameters("resources/" + ls.baseConfig);
   resolveLSystem(lSystem.passes);
-  turtleGeneration(vec3(0.0f, 0.0f, -1.0f),
+  turtleGeneration(vec3(0.0f, 0.0f, -2.0f),
                      glm::normalize(quat(0.707f, 0.707f, 0.0f, 0.0f)));
 }
 

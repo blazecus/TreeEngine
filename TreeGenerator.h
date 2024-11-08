@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "OccupancyGrid.h"
 
 class TreeGenerator {
 public:
@@ -14,6 +15,7 @@ public:
   using vec2 = glm::vec2;
   using mat3x3 = glm::mat3x3;
   using quat = glm::quat;
+  using CollisionPrism = OccupancyGrid::CollisionPrism;
 
   // represents one rule : takes in a single char, and turns it into a string
   // based on a list of chances chances are interpreted as "weights", and
@@ -63,7 +65,7 @@ public:
     float branchLength = 0.2f;
     float branchLengthDepthFactor = 2.0f;
 
-    float heliotropismChance = 0.25f;
+    float heliotropismChance = 0.6f;
     float heliotropismBendFactor = 0.4f;
     float initialThickness = 0.3f;
     float minThickness = 0.006f;
@@ -73,8 +75,8 @@ public:
     float splitOffBend = 1.3f;
     float minSplitOffBend = 0.5f;
     float splitOffTwist = 0.1f;
-    float maxSplitOffThicknessFactor = 1.1f;
-    float minSplitOffThicknessFactor = 0.8f;
+    float maxSplitOffThicknessFactor = 1.2f;
+    float minSplitOffThicknessFactor = 1.15f;
   };
 
   // parameters and variables that govern L-System generation
@@ -89,6 +91,7 @@ public:
 
   std::vector<Branch> branches;
   std::vector<TreeMeshVertex> mesh;
+  std::vector<CollisionPrism> collisionShapes;
 
   // test L-System generation
   void testLSystem();
