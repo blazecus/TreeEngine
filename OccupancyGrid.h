@@ -36,17 +36,25 @@ public:
   };
 
   struct GridSettings{
-    float gridSize = 10.0f;
+    float gridSize = 5.0f;
     float cellSize = 0.2f;
   };
 
-  void buildGrid(const GridSettings& settings, const std::vector<CollisionPrism>& collisionShapes);
-
+  void buildGrid(const GridSettings& settings);
   std::vector<CollisionPrism> getCollisions(const CollisionPrism& newBranch);
-
   void addCollisionShape(const CollisionPrism& collisionShape);
 
+
 private:  
+  size_t gridDimension = 0;
   std::vector<GridCell> grid;
   std::vector<std::unordered_set<size_t>> branchToGridCells;
+  std::vector<std::vector<CollisionPrism>> collisionShapes;
+
+  GridSettings gridSettings;
+
+  bool collideWithPrism(const CollisionPrism& collisionShape1, const CollisionPrism& collisionShape2);
+  bool collideWithVoxels(const CollisionPrism& collisionShape, const GridCell& cell);
+  std::array<vec3, 8> getCorners(const CollisionPrism& collisionShape);
+  bool pointInPrism(const CollisionPrism& collisionShape, const vec3& point);
 };
