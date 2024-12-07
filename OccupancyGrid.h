@@ -19,11 +19,12 @@ public:
   using mat3x3 = glm::mat3x3;
   using quat = glm::quat;
 
-  struct CollisionPrism{
+  struct OBB{
     vec3 origin;
     vec3 xDimension;
     vec3 yDimension;
     vec3 zDimension;
+    vec3 dimensionSizes;
     uint32_t branchIndex;
   };
 
@@ -37,24 +38,26 @@ public:
 
   struct GridSettings{
     float gridSize = 5.0f;
-    float cellSize = 0.2f;
+    float cellSize = 0.3f;
   };
 
   void buildGrid(const GridSettings& settings);
-  std::vector<CollisionPrism> getCollisions(const CollisionPrism& newBranch);
-  void addCollisionShape(const CollisionPrism& collisionShape);
+  void clearGrid();
+  std::vector<OBB> getCollisions(const OBB& newBranch);
+  bool addBox(const OBB& box, const uint32_t parentBranch);
 
 
 private:  
   size_t gridDimension = 0;
   std::vector<GridCell> grid;
   std::vector<std::unordered_set<size_t>> branchToGridCells;
-  std::vector<std::vector<CollisionPrism>> collisionShapes;
+  std::vector<std::vector<OBB>> boxes;
+  std::vector<uint32_t> parents;
 
   GridSettings gridSettings;
 
-  bool collideWithPrism(const CollisionPrism& collisionShape1, const CollisionPrism& collisionShape2);
-  bool collideWithVoxels(const CollisionPrism& collisionShape, const GridCell& cell);
-  std::array<vec3, 8> getCorners(const CollisionPrism& collisionShape);
-  bool pointInPrism(const CollisionPrism& collisionShape, const vec3& point);
+  bool separatingPlaneExists(const vec3& diff, const vec3& planeNormal, const OBB& box1, const OBB& box2);
+  bool collideWithPrism(const OBB& box1, const OBB& box2, const bool voxelCheck);
+  bool collideWithVoxel(const OBB& box, const uint16_t x, const uint16_t y, const uint16_t z);
+  std::array<vec3, 8> getCorners(const OBB& box);
 };

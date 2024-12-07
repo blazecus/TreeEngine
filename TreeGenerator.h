@@ -10,12 +10,15 @@
 
 class TreeGenerator {
 public:
+
+  static const uint8_t COLLISION_RETRIES = 20;
+
   // (Just aliases to make notations lighter)
   using vec3 = glm::vec3;
   using vec2 = glm::vec2;
   using mat3x3 = glm::mat3x3;
   using quat = glm::quat;
-  using CollisionPrism = OccupancyGrid::CollisionPrism;
+  using OBB = OccupancyGrid::OBB;
 
   // represents one rule : takes in a single char, and turns it into a string
   // based on a list of chances chances are interpreted as "weights", and
@@ -91,7 +94,6 @@ public:
 
   std::vector<Branch> branches;
   std::vector<TreeMeshVertex> mesh;
-  std::vector<CollisionPrism> collisionShapes;
 
   // test L-System generation
   void testLSystem();
@@ -106,6 +108,9 @@ private:
   // treeParameters deals with the generation of the tree structure and mesh
   // from the L-System
   TreeParameters treeParameters;
+
+  // Collision handling class
+  OccupancyGrid collisionGrid;
 
   // keep track of max dephth - dynamic variable that should exist outside of
   // tree parameters ( depends on RNG)

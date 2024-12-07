@@ -15,11 +15,19 @@ using LSystem = TreeGenerator::LSystem;
 using Rule = TreeGenerator::Rule;
 using TreeMeshVertex = TreeGenerator::TreeMeshVertex;
 using json = nlohmann::json;
+using GridSettings = OccupancyGrid::GridSettings;
 
 void TreeGenerator::initiateTree(const TreeParameters& params, const LSystem& ls) {
 
   treeParameters = params;
   lSystem = ls;
+
+  // TODO: temporary fixed settings
+  GridSettings gridSettings;
+  gridSettings.gridSize = 5.0f;
+  gridSettings.cellSize = 0.2f;
+
+  collisionGrid.buildGrid(gridSettings);
 
   // initiate rng seed
   if(lSystem.seed == 0){
@@ -35,6 +43,7 @@ void TreeGenerator::initiateTree(const TreeParameters& params, const LSystem& ls
 void TreeGenerator::generateTree(const TreeParameters params, const LSystem ls) {
   branches.clear();
   mesh.clear();
+  collisionGrid.clearGrid();
   initiateTree(params, ls);
   loadTreeParameters("resources/" + ls.baseConfig);
   resolveLSystem(lSystem.passes);
@@ -172,29 +181,64 @@ void TreeGenerator::instructTurtle(
   if (instruction == 'F') {
     // move turtle forward with some rotation
     // apply rotation first
-    if (RNG() <= treeParameters.heliotropismChance) {
-      turtleRotation = applyHeliotropism(turtleRotation, RNG() * treeParameters.heliotropismBendFactor);
-    } else {
-      turtleRotation =
-          rotateBranchAbsolute(turtleRotation,
-                       vec3((RNG() - 0.5f) * 2.0f * treeParameters.trunkBend,
-                            (RNG() - 0.5f) * 2.0f * treeParameters.trunkTwist,
-                            (RNG() - 0.5f) * 2.0f * treeParameters.trunkBend));
-    }
-    float branchLength =
-        (2.0f - static_cast<float>(depth) / static_cast<float>(maxDepth)) *
-        0.5f * treeParameters.branchLengthDepthFactor *
-        treeParameters.branchLength;
-    // make tree thinner the farther it grows
-    turtleThickness = glm::clamp(
-        turtleThickness * treeParameters.thicknessDecay,
-        treeParameters.minThickness, treeParameters.initialThickness);
-    generateBranchMesh(static_cast<uint32_t>(branchStack.size()) - 1,
-                       turtlePosition, turtleRotation, branchLength,
-                       turtleThickness);
-    turtlePosition +=
-        rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength;
+    bool collided = true;
+    quat oldTurtleRotation = turtleRotation;
+    vec3 oldTurtlePosition = turtlePosition;
+    float oldTurtleThickness = turtleThickness;
+    for(uint8_t collisionAttempts = 0; collisionAttempts < COLLISION_RETRIES; collisionAttempts++){
 
+      turtleRotation = oldTurtleRotation;
+      turtlePosition = oldTurtlePosition;
+      turtleThickness = oldTurtleThickness;
+
+      if (RNG() <= treeParameters.heliotropismChance) {
+        turtleRotation = applyHeliotropism(turtleRotation, RNG() * treeParameters.heliotropismBendFactor);
+      } else {
+        turtleRotation =
+            rotateBranchAbsolute(turtleRotation,
+                        vec3((RNG() - 0.5f) * 2.0f * treeParameters.trunkBend,
+                              (RNG() - 0.5f) * 2.0f * treeParameters.trunkTwist,
+                              (RNG() - 0.5f) * 2.0f * treeParameters.trunkBend));
+      }
+      float branchLength =
+          (2.0f - static_cast<float>(depth) / static_cast<float>(maxDepth)) *
+          0.5f * treeParameters.branchLengthDepthFactor *
+          treeParameters.branchLength;
+      // make tree thinner the farther it grows
+      turtleThickness = glm::clamp(
+          turtleThickness * treeParameters.thicknessDecay,
+          treeParameters.minThickness, treeParameters.initialThickness);
+
+      vec3 obbOrigin = turtlePosition + rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength * 0.5f;
+      turtlePosition +=
+          rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength;
+
+      OBB sectionOBB;
+      sectionOBB.origin = obbOrigin;
+      sectionOBB.xDimension = glm::normalize(rotateVector(vec3(1.0f,0.0f,0.0f), turtleRotation));
+      sectionOBB.yDimension = glm::normalize(rotateVector(vec3(0.0f,1.0f,0.0f), turtleRotation));
+      sectionOBB.zDimension = glm::normalize(rotateVector(vec3(0.0f,0.0f,1.0f), turtleRotation));
+      sectionOBB.dimensionSizes = vec3(turtleThickness, branchLength * 0.5f, turtleThickness);
+      sectionOBB.branchIndex = branchStack[branchStack.size() - 1];
+      uint32_t parentIndex = 0;
+      if(branchStack.size() >= 2){
+        parentIndex = branchStack[branchStack.size() - 2];
+      }
+
+      if(collisionGrid.addBox(sectionOBB, parentIndex)){ 
+        generateBranchMesh(static_cast<uint32_t>(branchStack.size()) - 1,
+                        oldTurtlePosition, turtleRotation, branchLength,
+                        turtleThickness);
+        collided = false;
+        if(collisionAttempts > 0 ) std::cout << static_cast<int>(collisionAttempts) << std::endl;
+        break;
+      }
+    }
+    if(collided){
+      turtlePosition = oldTurtlePosition;
+      turtleRotation = oldTurtleRotation;
+      turtleThickness = oldTurtleThickness;
+    }
   } else if (instruction == '[') {
     // open bracket means a new branch is placed, and recursively drawn
     depth++;
