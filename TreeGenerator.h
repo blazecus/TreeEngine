@@ -34,6 +34,9 @@ public:
   struct Branch {
     vec3 origin;
     quat orientation;
+    vec3 globalOrigin;
+    quat globalOrientation;
+
     float length;
 
     vec3 linearForce;
@@ -46,6 +49,15 @@ public:
     uint16_t depth;
 
     uint32_t parent;
+  };
+
+  struct TurtleState{
+    vec3 turtlePosition;
+    quat turtleRotation;
+    float turtleThickness;
+    uint32_t branchIndex;
+    uint32_t lSystemIndex;
+    uint16_t depth;
   };
 
   // Mesh buffer input
@@ -134,14 +146,15 @@ private:
   // generate branch structure from lSystem
   void turtleGeneration(vec3 origin, quat originRotation);
 
-  void instructTurtle(char instruction, std::vector<uint32_t> &branchStack,
+  /*void instructTurtle(char instruction, std::vector<uint32_t> &branchStack,
                       std::vector<vec3> &positionStack,
                       std::vector<quat> &rotationStack,
                       std::vector<float> &thicknessStack, uint16_t &depth,
                       vec3 &turtlePosition, quat &turtleRotation,
-                      float &turtleThickness);
+                      float &turtleThickness);*/
+  void advanceTurtleState(const TurtleState& state, std::vector<TurtleState>& nextLayer);
 
-  Branch generateSingleBranch(vec3 origin, quat originRotation, uint16_t depth);
+  Branch generateSingleBranch(const vec3& origin, const quat& originRotation, const uint32_t parentIndex, const uint16_t depth);
   void generateBranchMesh(const uint32_t branchIndex, const vec3 &origin,
                           const quat &orientation, const float length,
                           const float thickness);
