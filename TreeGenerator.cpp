@@ -18,6 +18,7 @@ using TurtleState = TreeGenerator::TurtleState;
 using json = nlohmann::json;
 using GridSettings = OccupancyGrid::GridSettings;
 
+// initiateTree: initiates collision grid, rng seed, and sets settings
 void TreeGenerator::initiateTree(const TreeParameters& params, const LSystem& ls) {
 
   treeParameters = params;
@@ -41,6 +42,8 @@ void TreeGenerator::initiateTree(const TreeParameters& params, const LSystem& ls
   return;
 }
 
+// generateTree: clears previous information and settings, sets new params and l-system, 
+// and runs turtleGeneration
 void TreeGenerator::generateTree(const TreeParameters params, const LSystem ls) {
   branches.clear();
   mesh.clear();
@@ -104,12 +107,9 @@ std::string TreeGenerator::resolveLSystem(const uint8_t passes) {
     }
 
     currentPass = nextPass; // pass on new string to next loop
-    // std::cout << "pass: " << pass << " " << currentPass << std::endl;
-    // std::cout << "------------" << std::endl;
   }
 
   lSystem.lState = currentPass;
-  //std::cout << lSystem.lState << std::endl;
   return currentPass;
 }
 
@@ -118,7 +118,7 @@ float TreeGenerator::RNG() {
   return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
 }
 
-// basic test function for the tree generation system
+// testLSystem: basic test function for the tree generation system
 void TreeGenerator::testLSystem() {
   std::map<char, Rule> rules;
   Rule r1;
@@ -141,9 +141,8 @@ void TreeGenerator::testLSystem() {
   std::cout << "result: " << result << std::endl;
 }
 
-// note for later - branches need local coordinates. relative positions can be
-// calculated as forces are, then vertex positions have to be calculated
-// backwards
+// turtleGeneration: traverse an L-System string to generate a mesh repreesnting a tree
+// according to treeParameters and lSystem
 void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
                                      quat originRotation = quat(1.0f, 0.0f,
                                                                 0.0f, 1.0f)) {
@@ -151,13 +150,14 @@ void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
   // initiate first branch at depth 0, this is the trunk
   Branch firstBranch;
   firstBranch.globalOrigin = origin;
-  firstBranch.globalOrientation= originRotation; // TODO: apply some randomization here
+  firstBranch.globalOrientation= originRotation;
   firstBranch.depth = 0; 
   firstBranch.origin = origin;
   firstBranch.orientation = originRotation;
   firstBranch.parent = 0;
-
   branches.push_back(firstBranch);
+
+  // initial turtle state and layers
   std::vector<TurtleState> currentTreeLayer;
   std::vector<TurtleState> nextTreeLayer;
   TurtleState initialState = {
@@ -170,66 +170,40 @@ void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
   };
   currentTreeLayer.push_back(initialState);
 
-  // these stacks keep track of where we
-  /*std::vector<uint32_t> branchStack{0};
-  std::vector<vec3> positionStack{origin};
-  std::vector<quat> rotationStack{originRotation};
-  std::vector<float> thicknessStack{treeParameters.initialThickness};
-  
-
-  // need to keep track of turtle state as it can move without saving to the
-  // stack
-  vec3 turtlePosition = origin;
-  quat turtleRotation = originRotation;
-  float turtleThickness = treeParameters.initialThickness;
-
-  for (char instruction : lSystem.lState) {
-    instructTurtle(instruction, branchStack, positionStack, rotationStack,
-                   thicknessStack, depth, turtlePosition, turtleRotation,
-                   turtleThickness);
-  }*/
-  //uint32_t layerCount = 0;
+  // main loop - instruct turtle and switch layers for next loop
   while(currentTreeLayer.size() > 0){
-    /*
-    std::cout << "Layer: " << layerCount << std::endl;
-    std::cout << "Current layer size: " << currentTreeLayer.size() << std::endl;
-    std::cout << "-------------------" << std::endl;
-    layerCount++;
-    */
     for(TurtleState& turtleState : currentTreeLayer){
       advanceTurtleState(turtleState, nextTreeLayer);
     }
     currentTreeLayer = nextTreeLayer;
     nextTreeLayer.clear();
   }
-
 }
 
-/*void TreeGenerator::instructTurtle(
-    char instruction, std::vector<uint32_t> &branchStack,
-    std::vector<vec3> &positionStack, std::vector<quat> &rotationStack,
-    std::vector<float> &thicknessStack, uint16_t &depth, vec3 &turtlePosition,
-    quat &turtleRotation, float &turtleThickness) {
-*/
+// advanceTurtleState: given a state of a turtle (contained in a tree layer), and a vector to add the next layer to
+// progress the turtle forward according to the instruction from the L System
 void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<TurtleState>& nextLayer){
-  // retrieve the branch we're currently traversing (top level branch in branch
-  // stack)
   if(state.lSystemIndex >= lSystem.lState.size()){
     return; //reached end
   }
   char instruction = lSystem.lState[state.lSystemIndex];
 
   if (instruction == 'F') {
-    // move turtle forward with some rotation
-    // apply rotation first
+    // move turtle forward with some randomized rotation
+
+    // if a collision is detected, a different randomized rotation is tried until the branch finds a place
+    // past COLLISION_RETRIES, the branch is abandoned and not added to the next layer
     for(uint8_t collisionAttempts = 0; collisionAttempts < COLLISION_RETRIES; collisionAttempts++){
+      // temporary modified variables
       quat turtleRotation = state.turtleRotation;
       vec3 turtlePosition = state.turtlePosition;
       float turtleThickness = state.turtleThickness;
 
+      // determine if section is heliotropic
       if (RNG() <= treeParameters.heliotropismChance) {
         turtleRotation = applyHeliotropism(turtleRotation, RNG() * treeParameters.heliotropismBendFactor);
       } else {
+        // randomized non-heliotropic rotation
         turtleRotation =
             rotateBranchAbsolute(turtleRotation,
                         vec3((RNG() - 0.5f) * 2.0f * treeParameters.trunkBend,
@@ -245,6 +219,7 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
           turtleThickness * treeParameters.thicknessDecay,
           treeParameters.minThickness, treeParameters.initialThickness);
 
+      // generate a temporary oriented bounding box to see if branch fits
       vec3 obbOrigin = turtlePosition + rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength * 0.5f;
       turtlePosition +=
           rotateVector(vec3(0.0f, 1.0f, 0.0f), turtleRotation) * branchLength;
@@ -257,10 +232,15 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
       sectionOBB.dimensionSizes = vec3(turtleThickness, branchLength * 0.5f, turtleThickness);
       sectionOBB.branchIndex = state.branchIndex;
 
+      // collisionGrid.addBox checks if branch can be added - if it can, it adds the branch to the collision grid
+      // and returns true. else, it does not add the branch and returns false
       if(collisionGrid.addBox(sectionOBB, branches[state.branchIndex].parent)){ 
+        // if the branch fits, we add its mesh to the vertex vector
         generateBranchMesh(state.branchIndex,
                         state.turtlePosition, turtleRotation, branchLength,
                         turtleThickness);
+        
+        // then we push the progressed turtle state to the next layer of the tree
         TurtleState progressedState = {
           turtlePosition,                        
           turtleRotation,                   
@@ -269,9 +249,9 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
           state.lSystemIndex+1,
           state.depth
         };
-        
         nextLayer.push_back(progressedState);
-        //if(collisionAttempts > 0 ) std::cout << static_cast<int>(collisionAttempts) << std::endl;
+
+        // DEBUG: if(collisionAttempts > 0 ) std::cout << static_cast<int>(collisionAttempts) << std::endl;
         break;
       }
     }
@@ -281,6 +261,8 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
     // first, place original turtle state back after branch, so have to find end of branch in string
     uint16_t branchDepth = 0;
     uint32_t checkStringIndex = state.lSystemIndex + 1;
+
+    // find end of branch in L System string
     while(!(branchDepth == 0 && lSystem.lState[checkStringIndex] == ']')){
       if(lSystem.lState[checkStringIndex] == '['){
         branchDepth++;
@@ -291,27 +273,25 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
 
       checkStringIndex++;
     }
-
-  
+ 
     float turtleThickness =
         treeParameters.branchOffRatio * (0.5 + RNG()) * state.turtleThickness;
-    // clamp value
+    // clamp value: result is thickness of offshoot branch
     turtleThickness = glm::clamp(turtleThickness, treeParameters.minThickness,
                                  treeParameters.initialThickness);
-
+    
+    // tree continues from original position, after branch ends in the L System string
     TurtleState repeatedState = {
       state.turtlePosition,
       state.turtleRotation,
-      sqrt(state.turtleThickness * state.turtleThickness - turtleThickness * turtleThickness),
+      sqrt(state.turtleThickness * state.turtleThickness - turtleThickness * turtleThickness), // thickness equation
       state.branchIndex,
       checkStringIndex + 1,
       state.depth
     };
-
     nextLayer.push_back(repeatedState);
 
     // branch off by rotating turtle away, in local rotation
-
     float eulerX = (RNG() - 0.5f) * 2.0f * treeParameters.branchBend;
     if (abs(eulerX) <= treeParameters.branchMinBend) {
       eulerX = treeParameters.branchMinBend * glm::sign(eulerX);
@@ -323,16 +303,11 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
     }
     quat turtleRotation = rotateBranchAbsolute(state.turtleRotation, vec3(eulerX, eulerY, eulerZ));
 
-    // place origin of next branch at local position, not global position
-    /*Branch addBranch = generateSingleBranch(
-        turtlePosition - positionStack[positionStack.size() - 2],
-        turtleRotation - rotationStack[rotationStack.size() - 2], depth);
-    addBranch.parent = branchStack[branchStack.size() - 2];
-    */
-   Branch addBranch = generateSingleBranch(state.turtlePosition, state.turtleRotation, state.branchIndex, state.depth + 1);
-
-    // add branch to branches
+    // generate and add branch to branches
+    Branch addBranch = generateSingleBranch(state.turtlePosition, state.turtleRotation, state.branchIndex, state.depth + 1);
     branches.push_back(addBranch);
+
+    // add offshoot branch to next layer
     TurtleState branchState = {
       state.turtlePosition,
       turtleRotation,
@@ -341,78 +316,44 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
       checkStringIndex + 1,
       static_cast<uint16_t>(state.depth + 1)
     };
-
     nextLayer.push_back(branchState);
-    
-  } else if (instruction == ']' || instruction == '}') {
-    // closed bracket means branch is ended, and turtle returns to the beginning
-    // of the branch
-    /*depth--;
 
-    turtlePosition = positionStack[positionStack.size() - 1];
-    turtleRotation = rotationStack[rotationStack.size() - 1];
-    turtleThickness = thicknessStack[thicknessStack.size() - 1];
-
-    // get rid of stored branch
-    branchStack.pop_back();
-    positionStack.pop_back();
-    rotationStack.pop_back();
-    thicknessStack.pop_back();*/
   } else if (instruction > '0' && instruction <= '9'){
     // if int is found - splitting instruction started
     uint8_t splitCount = instruction - '0';
     float splitOffset = RNG() * 2.0f * glm::pi<float>();
     float splitAngle = 2.0f * glm::pi<float>() / splitCount;
-
     float baseThickness = state.turtleThickness / sqrt((float) splitCount);
-
-    /*
-    vec3 parentPosition = positionStack[positionStack.size() - 1];
-    quat parentRotation = rotationStack[rotationStack.size() - 1];
-    uint32_t parentBranch = branchStack[branchStack.size() - 1];
-    */
     uint32_t lSystemIndex = state.lSystemIndex + 2;
 
+    // create as many splits as is specified according to the instruction
     for(uint8_t split = 0; split < splitCount; split++){
+      // determine thickness, bend, twist
       float thicknessRNG = treeParameters.minSplitOffThicknessFactor+ (treeParameters.maxSplitOffThicknessFactor - treeParameters.minSplitOffThicknessFactor) * RNG();
       float currentThickness = thicknessRNG * baseThickness;
 
       float twist = splitOffset + split * splitAngle + (RNG() - 0.5f) * 2.0f * treeParameters.splitOffTwist;
       float bend = glm::clamp(RNG() * treeParameters.splitOffBend, treeParameters.minSplitOffBend, treeParameters.splitOffBend);
 
+      // rotation math
       vec3 rotationAmount = vec3(
         0.0f,
         twist,
         0.0f
       );
-
       quat interRotation = rotateBranchAbsolute(state.turtleRotation, rotationAmount);
       rotationAmount = vec3(
         bend,
         0.0f,
         0.0f
       );
-
-      /*
-      thicknessStack.push_back(currentThickness);
-      positionStack.push_back(turtlePosition);
-      rotationStack.push_back(rotateBranchAbsolute(interRotation, rotationAmount));
-      branchStack.push_back(static_cast<uint32_t>(branches.size()));   
-
-      // place origin of next branch at local position, not global position
-      Branch addBranch = generateSingleBranch(
-          turtlePosition - parentPosition,
-          turtleRotation - parentRotation, depth);
-      addBranch.parent = parentBranch;
-
-      // add branch to branches
-      branches.push_back(addBranch);
-      */
       quat turtleRotation = rotateBranchAbsolute(interRotation, rotationAmount);
-      Branch addBranch = generateSingleBranch(state.turtlePosition, turtleRotation, state.branchIndex, state.depth + 1);
 
-      // add branch to branches
+      // create new branch and add to branches
+      Branch addBranch = generateSingleBranch(state.turtlePosition, turtleRotation, state.branchIndex, state.depth + 1);
       branches.push_back(addBranch);
+
+      // generate split-off branch in this loop and add it to the next layer of the tree
       TurtleState splitState = {
         state.turtlePosition,
         turtleRotation,
@@ -421,8 +362,9 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
         lSystemIndex,
         static_cast<uint16_t>(state.depth + 1)
       };
-
       nextLayer.push_back(splitState);
+
+      // find end of this split-off branch, set next index to the beginning of the next
       uint16_t branchDepth = 0;
       while(!(branchDepth == 0 && lSystem.lState[lSystemIndex] == '}')){
         if(lSystem.lState[lSystemIndex] == '{'){
@@ -434,18 +376,15 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
 
         lSystemIndex++;
       }
+      // skip the "}{" separating the branches
       lSystemIndex += 2;
     }
-  } else if (instruction == '{'){
-    /*
-    depth ++;
-    turtlePosition = positionStack[positionStack.size()-1];
-    turtleRotation = rotationStack[rotationStack.size()-1];
-    turtleThickness = thicknessStack[thicknessStack.size()-1];
-    */
   }
 }
 
+// generateSingleBranch: generates a branch representing a section of the tree
+// branches will be used to calculate physics later
+// stores both global and local coordinates
 Branch TreeGenerator::generateSingleBranch(const vec3& origin, const quat& originRotation, 
                                            uint32_t parentIndex, uint16_t depth) {
   Branch newBranch;
@@ -456,25 +395,11 @@ Branch TreeGenerator::generateSingleBranch(const vec3& origin, const quat& origi
   newBranch.origin = origin - branches[parentIndex].origin;
   newBranch.orientation = originRotation - branches[parentIndex].orientation;
 
-  // depth should be the main factor affecting randomness
-
-  // apply random rotation according to depth
   return newBranch;
 }
 
-glm::quat TreeGenerator::rotateBranch(const quat &rotation, const vec3 amount) {
-  vec3 rightAxis = rotateVector(vec3(1.0f, 0.0f, 0.0f), rotation);
-  quat runningRotation = glm::rotate(rotation, amount.x, rightAxis);
-
-  vec3 forwardAxis = rotateVector(vec3(0.0f, 1.0f, 0.0f), rotation);
-  runningRotation = glm::rotate(runningRotation, amount.y, forwardAxis);
-
-  vec3 upAxis = rotateVector(vec3(0.0f, 0.0f, 1.0f), rotation);
-  runningRotation = glm::rotate(runningRotation, amount.z, upAxis);
-
-  return runningRotation;
-}
-
+// rotateBranchAbsolute: rotate a quat rotation representing a branch's orientation, done with local vectors
+// rotates a given rotation by an amount in each x,y,z dimensions
 glm::quat TreeGenerator::rotateBranchAbsolute(const quat &rotation,
                                               const vec3 amount) {
   vec3 rightAxis = vec3(1.0f, 0.0f, 0.0f);
@@ -489,6 +414,7 @@ glm::quat TreeGenerator::rotateBranchAbsolute(const quat &rotation,
   return runningRotation;
 }
 
+// rotateVector: rotate a vector by a given quat rotation
 glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,
                                       const quat &rotation) {
   vec3 rotVec = vec3(rotation.x, rotation.y, rotation.z);
@@ -496,6 +422,8 @@ glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,
                                                 rotation.w * vector);
 }
 
+// generateBranchMesh: generate a prism mesh given a start point, rotation, length, and thickness
+// starts centered in x, z, but at the beginning of the y direction
 void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
                                        const vec3 &origin, const quat &rotation,
                                        const float sectionLength,
@@ -557,14 +485,11 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
   mesh.push_back(
       TreeMeshVertex{origin + -xAxis + yAxis - zAxis, 0.0f, -zAxis, 0.0f});
   mesh.push_back(TreeMeshVertex{origin + -xAxis - zAxis, 0.0f, -zAxis, 0.0f});
-  // std::cout << mesh[mesh.size() - 1].position.x << std::endl;
-  // std::cout << mesh[mesh.size() - 1].position.y << std::endl;
-  // std::cout << mesh[mesh.size() - 1].position.z << std::endl;
-  // std::cout << "--" << std::endl;
 
   // for now we will skip the top and bottom faces
 }
 
+// loadTreeParameters: loads a json file containing the ruleset for an L System 
 void TreeGenerator::loadTreeParameters(const std::string &fileName) {
   std::cout << fileName << std::endl;
   std::ifstream inputJson(fileName);
@@ -584,6 +509,7 @@ void TreeGenerator::loadTreeParameters(const std::string &fileName) {
   }
 }
 
+// applyHeliotropism: rotate a rotation upwards by a given amount
 glm::quat TreeGenerator::applyHeliotropism(const quat& rotation, const float amount){
   quat upwards = quat(0.707f, 0.707f, 0.0f, 0.0f);
   float angle = glm::acos(glm::dot(rotation, upwards));

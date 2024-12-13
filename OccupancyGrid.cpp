@@ -24,15 +24,6 @@ void OccupancyGrid::buildGrid(const GridSettings& settings){
     }
     parents.clear();
     boxes.clear();
-
-    /* need to use parent indices for this one
-    // if provided collision shapes, add them
-    for(std::vector<OBB> branch : boxes){
-        for(OBB& prism : branch){
-            addBox(prism,);
-        }
-    }
-    */
 }
 
 void OccupancyGrid::clearGrid(){

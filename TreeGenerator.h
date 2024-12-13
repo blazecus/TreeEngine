@@ -159,7 +159,6 @@ private:
                           const quat &orientation, const float length,
                           const float thickness);
 
-  quat rotateBranch(const quat &rotation, const vec3 amount);
   quat rotateBranchAbsolute(const quat &rotation, const vec3 amount);
   quat applyHeliotropism(const quat& rotation, const float amount);
   vec3 rotateVector(const vec3 &vector, const quat &rotation);
