@@ -46,7 +46,9 @@ void TreeGenerator::initiateTree(const TreeParameters& params, const LSystem& ls
 // and runs turtleGeneration
 void TreeGenerator::generateTree(const TreeParameters params, const LSystem ls) {
   branches.clear();
+  std::cout << "mesh cleared" << std::endl;
   mesh.clear();
+  meshEdges.clear();
   collisionGrid.clearGrid();
   initiateTree(params, ls);
   loadTreeParameters("resources/" + ls.baseConfig);
@@ -178,6 +180,9 @@ void TreeGenerator::turtleGeneration(vec3 origin = vec3(0.0f),
     currentTreeLayer = nextTreeLayer;
     nextTreeLayer.clear();
   }
+  
+  // finish any post processing on the mesh
+  polishMesh();
 }
 
 // advanceTurtleState: given a state of a turtle (contained in a tree layer), and a vector to add the next layer to
@@ -348,14 +353,22 @@ void TreeGenerator::advanceTurtleState(const TurtleState& state, std::vector<Tur
         0.0f
       );
       quat turtleRotation = rotateBranchAbsolute(interRotation, rotationAmount);
+      
+      // offset branches in their directions
+      const vec3 yAxis = rotateVector(vec3(0.0f, state.turtleThickness * 0.5, 0.0f), turtleRotation);
+      const vec3 xAxis = glm::normalize(rotateVector(vec3(1.0f, 0.0f, 0.0f), state.turtleRotation));
+      const vec3 zAxis = glm::normalize(rotateVector(vec3(0.0f, 0.0f, 1.0f), state.turtleRotation));
+      vec3 xProj = glm::dot(yAxis, xAxis) * xAxis;
+      vec3 zProj = glm::dot(yAxis, zAxis) * zAxis;
+      vec3 turtlePosition = state.turtlePosition + xProj + zProj;
 
       // create new branch and add to branches
-      Branch addBranch = generateSingleBranch(state.turtlePosition, turtleRotation, state.branchIndex, state.depth + 1);
+      Branch addBranch = generateSingleBranch(turtlePosition, turtleRotation, state.branchIndex, state.depth + 1);
       branches.push_back(addBranch);
 
       // generate split-off branch in this loop and add it to the next layer of the tree
       TurtleState splitState = {
-        state.turtlePosition,
+        turtlePosition,
         turtleRotation,
         currentThickness,
         static_cast<uint32_t>(branches.size() - 1),
@@ -422,9 +435,191 @@ glm::vec3 TreeGenerator::rotateVector(const vec3 &vector,
                                                 rotation.w * vector);
 }
 
-// generateBranchMesh: generate a prism mesh given a start point, rotation, length, and thickness
-// starts centered in x, z, but at the beginning of the y direction
 void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
+                                       const vec3 &origin, const quat &rotation,
+                                       const float sectionLength,
+                                       const float thickness) {
+  float verticalSliceSize = 0.05f;
+  uint8_t minHorizontalSampleCount = 4;
+  uint8_t baseHorizontalSampleCount = 12;
+  uint8_t horizontalSampleCount = minHorizontalSampleCount + static_cast<uint8_t>((thickness / treeParameters.initialThickness) * (baseHorizontalSampleCount - minHorizontalSampleCount));
+  float horizontalSliceSize = 2.0f * glm::pi<float>() / static_cast<float>(horizontalSampleCount);
+
+  std::vector<uint32_t> closeVertices;
+  std::vector<vec3> vertices;
+  std::vector<vec3> normals;
+
+  //  get axes
+  const vec3 yAxis = glm::normalize(rotateVector(vec3(0.0f, 1.0f, 0.0f), rotation));
+  const vec3 xAxis = glm::normalize(rotateVector(vec3(1.0f, 0.0f, 0.0f), rotation));
+
+  uint16_t verticalCount = 0;
+  float cumulativeVertical = 0.0f;
+  while(cumulativeVertical < sectionLength){
+    float horizontalOffset = RNG() * horizontalSliceSize; // randomize starting offset
+    vec3 yPos = cumulativeVertical * yAxis;
+
+    for(uint8_t hSample = 0; hSample < horizontalSampleCount; hSample++){
+      float rotationAmount = hSample * horizontalSliceSize + (RNG() + 0.2f) * 0.83f * horizontalSliceSize + horizontalOffset;
+      //quat sampleRotation = glm::rotate(rotation, rotationAmount, yAxis);
+      //vec3 rotatedX = glm::normalize(rotateVector(vec3(1.0f, 0.0f, 0.0f), sampleRotation)) *
+      //         (thickness + (thickness * (RNG() - 0.5f) * 0.2f));
+
+      vec3 rotatedX = xAxis + glm::sin(rotationAmount) * glm::cross(yAxis, xAxis) + 
+                              (1.0f - glm::cos(rotationAmount)) * glm::cross(yAxis, glm::cross(yAxis, xAxis));
+      rotatedX = glm::normalize(rotatedX) * (thickness + thickness * ((RNG() - 0.5f) * 0.06f));
+
+      vec3 sample = origin + 
+        yPos +  
+        ((RNG() - 0.5f) * 0.25f * yAxis * verticalSliceSize) + 
+        rotatedX;
+      vertices.push_back(sample);
+      vec3 normal = sample - (origin + yPos);
+      normals.push_back(normal);
+    }
+    
+    cumulativeVertical += (RNG() - 0.5f) * 0.25f * verticalSliceSize + verticalSliceSize;
+    verticalCount++;
+  }
+
+  std::vector<uint32_t> previousLayer;
+  // connect
+  if(branchIndex < meshEdges.size() && meshEdges[branchIndex].size() > 0){
+    previousLayer = meshEdges[branchIndex];
+  }
+  else if(branchIndex < meshEdges.size() && meshEdges[branches[branchIndex].parent].size() > 0){
+    previousLayer = meshEdges[branches[branchIndex].parent];
+  }
+
+  if(previousLayer.size() > 0){
+    std::vector<uint16_t> edges;
+    for(uint32_t vertexIndex : previousLayer){
+      float minimumDist = 10000.0f;
+      uint16_t minDistVertex = 0;
+      for(uint16_t connectionIndex = 0; connectionIndex < horizontalSampleCount * 2 && connectionIndex < vertices.size(); connectionIndex++){
+        float currentDist = glm::length(mesh[vertexIndex].position - vertices[connectionIndex]);
+        if(currentDist < minimumDist){
+          minimumDist = currentDist;
+          minDistVertex = connectionIndex; 
+        }
+      }
+      edges.push_back(minDistVertex);
+    }
+
+    for(uint8_t layerVertex = 0; layerVertex < previousLayer.size(); layerVertex++){
+      uint8_t vWrap = (layerVertex + 1) % previousLayer.size();
+      //std::cout << static_cast<int>(layerVertex) << " " << previousLayer.size() << std::endl;
+      mesh.push_back(TreeMeshVertex{
+        mesh[previousLayer[layerVertex]].position,
+        0.0f,
+        mesh[previousLayer[layerVertex]].normal,
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        vertices[edges[layerVertex]],
+        0.0f,
+        normals[edges[layerVertex]],
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        mesh[previousLayer[vWrap]].position,
+        0.0f,
+        mesh[previousLayer[vWrap]].normal,
+        0.0f,
+        branchIndex
+      });
+
+      mesh.push_back(TreeMeshVertex{
+        vertices[edges[layerVertex]],
+        0.0f,
+        normals[edges[layerVertex]],
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        vertices[edges[vWrap]],
+        0.0f,
+        normals[edges[vWrap]],
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        mesh[previousLayer[vWrap]].position,
+        0.0f,
+        mesh[previousLayer[vWrap]].normal,
+        0.0f,
+        branchIndex
+      });
+    }
+  }
+
+  // normal trunk/branch
+  for(uint16_t layer = 0; layer < verticalCount - 1; layer++){
+    for(uint8_t hSample = 0; hSample < horizontalSampleCount; hSample++){
+      uint8_t hSampleWrap = (hSample + 1) % horizontalSampleCount;
+      mesh.push_back(TreeMeshVertex{
+        vertices[layer * horizontalSampleCount + hSample],
+        0.0f,
+        normals[layer * horizontalSampleCount + hSample],
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        vertices[(layer + 1) * horizontalSampleCount + hSample],
+        0.0f,
+        normals[(layer + 1) * horizontalSampleCount + hSample],
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        vertices[layer * horizontalSampleCount + hSampleWrap],
+        0.0f,
+        normals[layer * horizontalSampleCount + hSampleWrap],
+        0.0f,
+        branchIndex
+      });
+
+      mesh.push_back(TreeMeshVertex{
+        vertices[(layer + 1) * horizontalSampleCount + hSample],
+        0.0f,
+        normals[(layer + 1) * horizontalSampleCount + hSample],
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        vertices[(layer + 1) * horizontalSampleCount + hSampleWrap],
+        0.0f,
+        normals[(layer + 1) * horizontalSampleCount + hSampleWrap],
+        0.0f,
+        branchIndex
+      });
+      mesh.push_back(TreeMeshVertex{
+        vertices[layer * horizontalSampleCount + hSampleWrap],
+        0.0f,
+        normals[layer * horizontalSampleCount + hSampleWrap],
+        0.0f,
+        branchIndex
+      });
+    }
+  }
+
+  while(branchIndex >= meshEdges.size()){
+    meshEdges.push_back(std::vector<uint32_t>()); 
+  }
+
+  std::vector<uint32_t> newBranchEdge;
+  for(uint8_t layerVertex = 0; layerVertex < horizontalSampleCount; layerVertex++){
+    newBranchEdge.push_back(static_cast<uint32_t>(mesh.size()) - 5 - 6 * (layerVertex));
+  }
+  meshEdges[branchIndex] = newBranchEdge;
+
+}
+
+// generateSquareBranchMesh: generate a prism mesh given a start point, rotation, length, and thickness
+// starts centered in x, z, but at the beginning of the y direction
+void TreeGenerator::generateSquareBranchMesh(const uint32_t branchIndex,
                                        const vec3 &origin, const quat &rotation,
                                        const float sectionLength,
                                        const float thickness) {
@@ -487,6 +682,121 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
   mesh.push_back(TreeMeshVertex{origin + -xAxis - zAxis, 0.0f, -zAxis, 0.0f});
 
   // for now we will skip the top and bottom faces
+}
+
+void TreeGenerator::polishMesh(){
+  for(uint32_t branch = 0; branch < meshEdges.size(); branch++){
+    std::vector<uint32_t> branchEdge = meshEdges[branch];
+    if(branchEdge.size() > 0){
+      vec3 center = vec3(0.0f);
+      std::vector<vec3> prevVerts;
+      std::vector<vec3> prevNorms;
+      for(uint32_t meshIndex : branchEdge){
+        center += mesh[meshIndex].position;
+        prevVerts.push_back(mesh[meshIndex].position);
+        prevNorms.push_back(mesh[meshIndex].normal);
+      }
+      center /= branchEdge.size();
+      vec3 radius1 = mesh[branchEdge[0]].position - center;
+      vec3 radius2 = mesh[branchEdge[branchEdge.size() - 1]].position - center;
+      float radius = glm::length(radius1);
+      vec3 upDir = glm::normalize(glm::cross(radius1, radius2));
+      vec3 top = center + upDir * radius;
+
+      std::vector<vec3> layerVerts;
+      std::vector<vec3> layerNorms;
+      for(uint8_t layer = 0; layer < 3; layer++){
+        for(uint32_t meshIndex : branchEdge){
+          float sphereX = (3 - layer) * 0.25f * radius;
+          float sphereY = sqrt(radius * radius - sphereX * sphereX);
+
+          layerVerts.push_back(center + 
+                              upDir * sphereY +
+                              glm::normalize(mesh[meshIndex].position - center) * sphereX);
+          layerNorms.push_back(layerVerts[layerVerts.size() - 1] - center);
+        }  
+
+        for(uint8_t indexInLayer = 0; indexInLayer < prevVerts.size(); indexInLayer++){
+          uint8_t indWrap = (indexInLayer + 1) % prevVerts.size();
+
+          mesh.push_back(TreeMeshVertex{
+            prevVerts[indexInLayer],
+            0.0f,
+            prevNorms[indexInLayer],
+            0.0f,
+            branch
+          });
+          mesh.push_back(TreeMeshVertex{
+            layerVerts[indexInLayer],
+            0.0f,
+            layerNorms[indexInLayer],
+            0.0f,
+            branch
+          });
+          mesh.push_back(TreeMeshVertex{
+            prevVerts[indWrap],
+            0.0f,
+            prevNorms[indWrap],
+            0.0f,
+            branch
+          });
+
+          mesh.push_back(TreeMeshVertex{
+            layerVerts[indexInLayer],
+            0.0f,
+            layerNorms[indexInLayer],
+            0.0f,
+            branch
+          });
+          mesh.push_back(TreeMeshVertex{
+            layerVerts[indWrap],
+            0.0f,
+            layerNorms[indWrap],
+            0.0f,
+            branch
+          });
+          mesh.push_back(TreeMeshVertex{
+            prevVerts[indWrap],
+            0.0f,
+            prevNorms[indWrap],
+            0.0f,
+            branch
+          });
+        }
+        
+        prevNorms = layerNorms;
+        prevVerts = layerVerts;
+        layerNorms.clear();
+        layerVerts.clear();
+      }
+
+      for(uint8_t indexInLayer = 0; indexInLayer < prevVerts.size(); indexInLayer++){
+        uint8_t indWrap = (indexInLayer + 1) % prevVerts.size();
+
+          mesh.push_back(TreeMeshVertex{
+            prevVerts[indexInLayer],
+            0.0f,
+            prevNorms[indexInLayer],
+            0.0f,
+            branch
+          });
+          mesh.push_back(TreeMeshVertex{
+            center + upDir * radius,
+            0.0f,
+            upDir,
+            0.0f,
+            branch
+          });
+          mesh.push_back(TreeMeshVertex{
+            prevVerts[indWrap],
+            0.0f,
+            prevNorms[indWrap],
+            0.0f,
+            branch
+          });
+      }
+    }
+  }
 }
 
 // loadTreeParameters: loads a json file containing the ruleset for an L System 

@@ -66,6 +66,8 @@ public:
     float garbage1; // 16 byte alignment
     vec3 normal = vec3(0.0f, 1.0f, 0.0f);
     float garbage2; // 16 byte alignment
+    
+    uint32_t branchIndex;
   };
 
   // parameters that determine tree generation (branch and mesh representations)
@@ -128,6 +130,8 @@ private:
   // tree parameters ( depends on RNG)
   uint16_t maxDepth;
 
+  std::vector<std::vector<uint32_t>> meshEdges;
+
   // rng, might change source of rng later
   float RNG();
 
@@ -155,9 +159,15 @@ private:
   void advanceTurtleState(const TurtleState& state, std::vector<TurtleState>& nextLayer);
 
   Branch generateSingleBranch(const vec3& origin, const quat& originRotation, const uint32_t parentIndex, const uint16_t depth);
+  void generateSquareBranchMesh(const uint32_t branchIndex, const vec3 &origin,
+                          const quat &orientation, const float length,
+                          const float thickness);
+
   void generateBranchMesh(const uint32_t branchIndex, const vec3 &origin,
                           const quat &orientation, const float length,
                           const float thickness);
+  
+  void polishMesh();
 
   quat rotateBranchAbsolute(const quat &rotation, const vec3 amount);
   quat applyHeliotropism(const quat& rotation, const float amount);
