@@ -439,7 +439,7 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
                                        const vec3 &origin, const quat &rotation,
                                        const float sectionLength,
                                        const float thickness) {
-  float verticalSliceSize = 0.05f;
+  float verticalSliceSize = 0.08f;
   uint8_t minHorizontalSampleCount = 4;
   uint8_t baseHorizontalSampleCount = 12;
   uint8_t horizontalSampleCount = minHorizontalSampleCount + static_cast<uint8_t>((thickness / treeParameters.initialThickness) * (baseHorizontalSampleCount - minHorizontalSampleCount));
@@ -455,7 +455,9 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
 
   uint16_t verticalCount = 0;
   float cumulativeVertical = 0.0f;
-  while(cumulativeVertical < sectionLength){
+  bool reachedEnd = false;
+
+  while(cumulativeVertical <= sectionLength){
     float horizontalOffset = RNG() * horizontalSliceSize; // randomize starting offset
     vec3 yPos = cumulativeVertical * yAxis;
 
@@ -467,11 +469,11 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
 
       vec3 rotatedX = xAxis + glm::sin(rotationAmount) * glm::cross(yAxis, xAxis) + 
                               (1.0f - glm::cos(rotationAmount)) * glm::cross(yAxis, glm::cross(yAxis, xAxis));
-      rotatedX = glm::normalize(rotatedX) * (thickness + thickness * ((RNG() - 0.5f) * 0.06f));
+      rotatedX = glm::normalize(rotatedX) * (thickness + thickness * ((RNG() - 0.5f) * 0.0f));
 
       vec3 sample = origin + 
         yPos +  
-        ((RNG() - 0.5f) * 0.25f * yAxis * verticalSliceSize) + 
+        ((RNG() - 0.5f) * 0.0f * yAxis * verticalSliceSize) + 
         rotatedX;
       vertices.push_back(sample);
       vec3 normal = sample - (origin + yPos);
@@ -479,6 +481,10 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
     }
     
     cumulativeVertical += (RNG() - 0.5f) * 0.25f * verticalSliceSize + verticalSliceSize;
+    if(cumulativeVertical > sectionLength && !reachedEnd){
+      cumulativeVertical = sectionLength;
+      reachedEnd = true;
+    }
     verticalCount++;
   }
 
@@ -487,71 +493,54 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
   if(branchIndex < meshEdges.size() && meshEdges[branchIndex].size() > 0){
     previousLayer = meshEdges[branchIndex];
   }
-  else if(branchIndex < meshEdges.size() && meshEdges[branches[branchIndex].parent].size() > 0){
-    previousLayer = meshEdges[branches[branchIndex].parent];
-  }
 
   if(previousLayer.size() > 0){
-    std::vector<uint16_t> edges;
-    for(uint32_t vertexIndex : previousLayer){
-      float minimumDist = 10000.0f;
-      uint16_t minDistVertex = 0;
-      for(uint16_t connectionIndex = 0; connectionIndex < horizontalSampleCount * 2 && connectionIndex < vertices.size(); connectionIndex++){
-        float currentDist = glm::length(mesh[vertexIndex].position - vertices[connectionIndex]);
-        if(currentDist < minimumDist){
-          minimumDist = currentDist;
-          minDistVertex = connectionIndex; 
-        }
+    float minimumDist = 10000.0f;
+    uint16_t minDistVertex = 0;
+    for(uint16_t connectionIndex = 0; connectionIndex < horizontalSampleCount * 2 && connectionIndex < vertices.size(); connectionIndex++){
+      float currentDist = glm::length(mesh[previousLayer[0]].position - vertices[connectionIndex]);
+      if(currentDist < minimumDist){
+        minimumDist = currentDist;
+        minDistVertex = connectionIndex; 
       }
-      edges.push_back(minDistVertex);
     }
+    uint16_t startingEdge = minDistVertex;
 
-    for(uint8_t layerVertex = 0; layerVertex < previousLayer.size(); layerVertex++){
-      uint8_t vWrap = (layerVertex + 1) % previousLayer.size();
-      //std::cout << static_cast<int>(layerVertex) << " " << previousLayer.size() << std::endl;
-      mesh.push_back(TreeMeshVertex{
-        mesh[previousLayer[layerVertex]].position,
-        0.0f,
-        mesh[previousLayer[layerVertex]].normal,
-        0.0f,
-        branchIndex
-      });
-      mesh.push_back(TreeMeshVertex{
-        vertices[edges[layerVertex]],
-        0.0f,
-        normals[edges[layerVertex]],
-        0.0f,
-        branchIndex
-      });
-      mesh.push_back(TreeMeshVertex{
-        mesh[previousLayer[vWrap]].position,
-        0.0f,
-        mesh[previousLayer[vWrap]].normal,
-        0.0f,
-        branchIndex
-      });
+    uint16_t currentTopConnection = (startingEdge + 1) % horizontalSampleCount;
+    uint16_t currentBottomConnection = 0;
+    // initial square - doing it this way was for debugging at first but will keep this for loop repition purposes
+    mesh.push_back(TreeMeshVertex{mesh[previousLayer[0]].position,0.0f,mesh[previousLayer[0]].normal,0.0f,branchIndex});
+    mesh.push_back(TreeMeshVertex{vertices[startingEdge],0.0f,normals[startingEdge],0.0f,branchIndex});
+    mesh.push_back(TreeMeshVertex{mesh[previousLayer[1]].position,0.0f,mesh[previousLayer[1]].normal,0.0f,branchIndex});
 
-      mesh.push_back(TreeMeshVertex{
-        vertices[edges[layerVertex]],
-        0.0f,
-        normals[edges[layerVertex]],
-        0.0f,
-        branchIndex
-      });
-      mesh.push_back(TreeMeshVertex{
-        vertices[edges[vWrap]],
-        0.0f,
-        normals[edges[vWrap]],
-        0.0f,
-        branchIndex
-      });
-      mesh.push_back(TreeMeshVertex{
-        mesh[previousLayer[vWrap]].position,
-        0.0f,
-        mesh[previousLayer[vWrap]].normal,
-        0.0f,
-        branchIndex
-      });
+    mesh.push_back(TreeMeshVertex{vertices[startingEdge],0.0f,normals[startingEdge],0.0f,branchIndex});
+    mesh.push_back(TreeMeshVertex{vertices[currentTopConnection],0.0f,normals[currentTopConnection],0.0f,branchIndex});
+    mesh.push_back(TreeMeshVertex{mesh[previousLayer[0]].position,0.0f,mesh[previousLayer[0]].normal,0.0f,branchIndex});
+
+    while(currentTopConnection != startingEdge && currentBottomConnection != 1){
+      uint16_t topWrap = (currentTopConnection + 1) % horizontalSampleCount;
+      uint16_t botWrap = (currentBottomConnection + static_cast<uint16_t>(previousLayer.size() - 1)) % previousLayer.size();
+
+      mesh.push_back(TreeMeshVertex{mesh[previousLayer[botWrap]].position,0.0f,mesh[previousLayer[botWrap]].normal,0.0f,branchIndex});
+      mesh.push_back(TreeMeshVertex{vertices[currentTopConnection],0.0f,normals[currentTopConnection],0.0f,branchIndex});
+      mesh.push_back(TreeMeshVertex{mesh[previousLayer[currentBottomConnection]].position,0.0f,mesh[previousLayer[currentBottomConnection]].normal,0.0f,branchIndex});
+
+      mesh.push_back(TreeMeshVertex{vertices[currentTopConnection],0.0f,normals[currentTopConnection],0.0f,branchIndex});
+      mesh.push_back(TreeMeshVertex{vertices[topWrap],0.0f,normals[topWrap],0.0f,branchIndex});
+      mesh.push_back(TreeMeshVertex{mesh[previousLayer[botWrap]].position,0.0f,mesh[previousLayer[botWrap]].normal,0.0f,branchIndex});
+
+      currentTopConnection = topWrap;
+      currentBottomConnection = botWrap;
+    }
+    while(currentBottomConnection != 1){
+      // plug up extra vertex gaps
+      uint16_t botWrap = (currentBottomConnection + static_cast<uint16_t>(previousLayer.size() - 1)) % previousLayer.size();
+
+      mesh.push_back(TreeMeshVertex{mesh[previousLayer[botWrap]].position,0.0f,mesh[previousLayer[botWrap]].normal,0.0f,branchIndex});
+      mesh.push_back(TreeMeshVertex{vertices[currentTopConnection],0.0f,normals[currentTopConnection],0.0f,branchIndex});
+      mesh.push_back(TreeMeshVertex{mesh[previousLayer[currentBottomConnection]].position,0.0f,mesh[previousLayer[currentBottomConnection]].normal,0.0f,branchIndex});
+
+      currentBottomConnection = botWrap;
     }
   }
 
