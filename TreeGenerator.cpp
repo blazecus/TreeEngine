@@ -439,9 +439,9 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
                                        const vec3 &origin, const quat &rotation,
                                        const float sectionLength,
                                        const float thickness) {
-  float verticalSliceSize = 0.08f;
+  float verticalSliceSize = 0.05f;
   uint8_t minHorizontalSampleCount = 4;
-  uint8_t baseHorizontalSampleCount = 12;
+  uint8_t baseHorizontalSampleCount = 32;
   uint8_t horizontalSampleCount = minHorizontalSampleCount + static_cast<uint8_t>((thickness / treeParameters.initialThickness) * (baseHorizontalSampleCount - minHorizontalSampleCount));
   float horizontalSliceSize = 2.0f * glm::pi<float>() / static_cast<float>(horizontalSampleCount);
 
@@ -469,11 +469,11 @@ void TreeGenerator::generateBranchMesh(const uint32_t branchIndex,
 
       vec3 rotatedX = xAxis + glm::sin(rotationAmount) * glm::cross(yAxis, xAxis) + 
                               (1.0f - glm::cos(rotationAmount)) * glm::cross(yAxis, glm::cross(yAxis, xAxis));
-      rotatedX = glm::normalize(rotatedX) * (thickness + thickness * ((RNG() - 0.5f) * 0.0f));
+      rotatedX = glm::normalize(rotatedX) * (thickness + thickness * ((RNG() - 0.5f) * 0.05f));
 
       vec3 sample = origin + 
         yPos +  
-        ((RNG() - 0.5f) * 0.0f * yAxis * verticalSliceSize) + 
+        ((RNG() - 0.5f) * 0.25f * yAxis * verticalSliceSize) + 
         rotatedX;
       vertices.push_back(sample);
       vec3 normal = sample - (origin + yPos);

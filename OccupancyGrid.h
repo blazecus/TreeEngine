@@ -11,7 +11,7 @@
 
 class OccupancyGrid{
 public:
-  static const uint8_t MAX_OCCUPANTS = 32;
+  static const uint8_t MAX_OCCUPANTS = 64;
 
   // (Just aliases to make notations lighter)
   using vec3 = glm::vec3;
