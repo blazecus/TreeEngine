@@ -20,9 +20,9 @@ This is a WebGPU application that uses L-Systems to generate realistic trees of 
 
 * For local use, you can run these commands:
 
-**cmake . -B build
+- cmake . -B build
 
-**cmake --build build
+- cmake --build build
 
 
 This will produce an executable (build/Debug/App.exe on Windows). 
